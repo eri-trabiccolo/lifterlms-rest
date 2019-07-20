@@ -11,12 +11,6 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- *  TODO:
- * - do we really want to reply with "Bad request" for llms_rest_bad_request ?
- * - Implement everything :D
- */
-
-/**
  * LLMS_REST_Posts_Controller
  *
  * @since [version]
@@ -36,7 +30,6 @@ abstract class LLMS_REST_Posts_Controller extends WP_REST_Controller {
 	 * @var string
 	 */
 	protected $post_type;
-
 
 	/**
 	 * Register routes.
@@ -158,7 +151,7 @@ abstract class LLMS_REST_Posts_Controller extends WP_REST_Controller {
 		$objects     = $query_results['objects'];
 
 		if ( $page > $max_pages && $total_posts > 0 ) {
-			return llms_rest_bad_request_error();
+			return llms_rest_bad_request_error( __( 'The page number requested is larger than the number of pages available.', 'lifterlms' ) );
 		}
 
 		$response = rest_ensure_response( $objects );
@@ -533,7 +526,6 @@ abstract class LLMS_REST_Posts_Controller extends WP_REST_Controller {
 			remove_filter( 'post_password_required', '__return_false' );
 		}
 
-		$page        = (int) $query_args['paged'];
 		$total_posts = $query->found_posts;
 
 		if ( $total_posts < 1 ) {
@@ -619,7 +611,7 @@ abstract class LLMS_REST_Posts_Controller extends WP_REST_Controller {
 		setup_postdata( $post );
 
 		$removed_filters_for_response = $this->maybe_remove_filters_for_response( $object );
-		$has_password_filter = false;
+		$has_password_filter          = false;
 
 		if ( $this->can_access_password_content( $object, $request ) ) {
 			// Allow access to the post, permissions already checked before.
