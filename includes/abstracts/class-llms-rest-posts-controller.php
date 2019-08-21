@@ -5,7 +5,7 @@
  * @package LifterLMS_REST/Abstracts
  *
  * @since 1.0.0-beta.1
- * @version 1.0.0-beta.2
+ * @version [version]
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -16,6 +16,7 @@ defined( 'ABSPATH' ) || exit;
  * @since 1.0.0-beta.1
  * @since 1.0.0-beta.2 Filter taxonomies by `public` property instead of `show_in_rest`.
  * @since 1.0.0-beta.3 Filter taxonomies by `show_in_llms_rest` property instead of `public`.
+ * @since [version] Added the `$parent_post_type` class property.
  */
 abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 
@@ -25,6 +26,14 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 	 * @var string
 	 */
 	protected $post_type;
+
+	/**
+	 * Post type of the parent.
+	 *
+	 * @since [version]
+	 * @var string
+	 */
+	protected $parent_post_type;
 
 	/**
 	 * Route base.
@@ -922,6 +931,15 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 			$prepared_item['ping_status'] = $request['ping_status'];
 		}
 
+		// A new resource will always be auto-incremented and dropped to the end of the list.
+		if ( ! $request['id'] ) { // <- we're creating
+			if ( ! empty( $schema['properties']['parent_id'] ) && ! empty( $schema['properties']['order'] ) && isset( $request['parent_id'] ) ) {
+
+				$prepared_item['order'] = $this->compute_order( $request );
+
+			}
+		}
+
 		return $prepared_item;
 
 	}
@@ -1275,6 +1293,42 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 		 * @param LLMS_Post_Model $object  LLMS_Post_Model object.
 		 */
 		return apply_filters( "llms_rest_{$this->post_type}_filters_removed_for_reponse", array(), $object );
+
+	}
+
+
+
+	/**
+	 * Computes the order of the new resource.
+	 *
+	 * @since [version]
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 * @return int
+	 */
+	protected function compute_order( $request ) {
+
+		global $wpdb;
+		$order = $wpdb->get_var(
+			$wpdb->prepare(
+				"
+				SELECT MAX( pm.meta_value ) FROM
+				{$wpdb->prefix}posts as p JOIN {$wpdb->prefix}postmeta AS pm
+				WHERE p.post_type = %s AND p.ID = pm.post_id AND pm.meta_key = '_llms_order'
+				AND pm.post_id IN
+				(
+					SELECT pm2.post_id FROM
+					{$wpdb->prefix}postmeta as pm2
+					WHERE pm2.meta_key = %s AND pm2.meta_value = %d
+				)
+				",
+				$this->post_type,
+				'_llms_parent_' . $this->parent_post_type,
+				(int) $request['parent_id']
+			)
+		);
+
+		return absint( $order ) + 1;
 
 	}
 

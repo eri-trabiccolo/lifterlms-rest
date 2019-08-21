@@ -5,7 +5,7 @@
  * @package LifterLMS_REST/Classes/Controllers
  *
  * @since 1.0.0-beta.1
- * @version 1.0.0-beta.1
+ * @version [version]
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -15,6 +15,7 @@ defined( 'ABSPATH' ) || exit;
  * LLMS_REST_Sections_Controller
  *
  * @since 1.0.0-beta.1
+ * @since [version] Added the `$parent_post_type` class property.
  */
 class LLMS_REST_Sections_Controller extends LLMS_REST_Posts_Controller {
 
@@ -31,6 +32,14 @@ class LLMS_REST_Sections_Controller extends LLMS_REST_Posts_Controller {
 	 * @var string
 	 */
 	protected $post_type = 'section';
+
+	/**
+	 * Post type of the parent.
+	 *
+	 * @since [version]
+	 * @var string
+	 */
+	protected $parent_post_type = 'course';
 
 	/**
 	 * Parent id.
@@ -230,17 +239,6 @@ class LLMS_REST_Sections_Controller extends LLMS_REST_Posts_Controller {
 			$prepared_item['parent_course'] = $request['parent_id'];
 		}
 
-		// LLMS Section order.
-		if ( ! empty( $schema['properties']['order'] ) && isset( $request['order'] ) ) {
-
-			// order must be > 0. It's sanitized as absint so it cannot come as negative value.
-			if ( 0 === $request['order'] ) {
-				return llms_rest_bad_request_error( __( 'Invalid order param. It must be greater than 0.', 'lifterlms' ) );
-			}
-
-			$prepared_item['order'] = $request['order'];
-		}
-
 		return $prepared_item;
 
 	}
@@ -274,12 +272,8 @@ class LLMS_REST_Sections_Controller extends LLMS_REST_Posts_Controller {
 		$schema['properties']['order'] = array(
 			'description' => __( 'Order of the section within the course.', 'lifterlms' ),
 			'type'        => 'integer',
-			'default'     => 1,
 			'context'     => array( 'view', 'edit' ),
-			'arg_options' => array(
-				'sanitize_callback' => 'absint',
-			),
-			'required'    => true,
+			'readonly'    => true,
 		);
 
 		// remove unnecessary properties.

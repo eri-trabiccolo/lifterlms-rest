@@ -15,6 +15,7 @@ defined( 'ABSPATH' ) || exit;
  * LLMS_REST_Lessons_Controller
  *
  * @since 1.0.0-beta.1
+ * @since [version] Added the `$parent_post_type` class property.
  *
  * @todo Implement endpoints.
  */
@@ -33,6 +34,14 @@ class LLMS_REST_Lessons_Controller extends LLMS_REST_Posts_Controller {
 	 * @var string
 	 */
 	protected $post_type = 'lesson';
+
+	/**
+	 * Post type of the parent.
+	 *
+	 * @since [version]
+	 * @var string
+	 */
+	protected $parent_post_type = 'section';
 
 	/**
 	 * Schema properties available for ordering the collection.
@@ -145,12 +154,8 @@ class LLMS_REST_Lessons_Controller extends LLMS_REST_Posts_Controller {
 			'order'        => array(
 				'description' => __( 'Order of the lesson within its immediate parent.', 'lifterlms' ),
 				'type'        => 'integer',
-				'default'     => 1,
 				'context'     => array( 'view', 'edit' ),
-				'arg_options' => array(
-					'sanitize_callback' => 'absint',
-				),
-				'required'    => true,
+				'readonly'    => true,
 			),
 			'prerequisite' => array(
 				'description' => __( 'Lesson ID of the prerequisite lesson.', 'lifterlms' ),

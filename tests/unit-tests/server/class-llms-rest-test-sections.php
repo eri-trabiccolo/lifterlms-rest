@@ -8,7 +8,7 @@
  * @group rest_sections
  *
  * @since 1.0.0-beta.1
- * @version 1.0.0-beta.1
+ * @version [version]
  */
 class LLMS_REST_Test_Sections extends LLMS_REST_Unit_Test_Case_Posts {
 
@@ -103,7 +103,7 @@ class LLMS_REST_Test_Sections extends LLMS_REST_Unit_Test_Case_Posts {
 			$course_obj = new LLMS_Course( $course );
 			$sections   = $course_obj->get_sections();
 
-			// Easy sequential check as sections are by default oredered by id.
+			// Easy sequential check as sections are by default ordered by id.
 			$j = 0;
 			foreach ( $sections as $section ) {
 				$res_section = $res_data[ $i + $j ];
@@ -129,7 +129,8 @@ class LLMS_REST_Test_Sections extends LLMS_REST_Unit_Test_Case_Posts {
 		$request = new WP_REST_Request( 'POST', $this->route );
 
 		// create a course.
-		$course_id = $this->factory->course->create( array( 'sections' => 0 ) );
+		$course = $this->factory->course->create_and_get( array( 'sections' => 0 ) );
+		$course_id = $course->get( 'id' );
 
 		$section_args = $this->sample_section_args;
 		$section_args['parent_id'] = $course_id;
@@ -140,7 +141,6 @@ class LLMS_REST_Test_Sections extends LLMS_REST_Unit_Test_Case_Posts {
 		// Success.
 		$this->assertEquals( 201, $response->get_status() );
 
-		$course = new LLMS_Course( $course_id );
 		$sections = $course->get_sections(); // returns an array of one element.
 
 		$res_data = $response->get_data();
@@ -148,6 +148,41 @@ class LLMS_REST_Test_Sections extends LLMS_REST_Unit_Test_Case_Posts {
 		// Test the created section and the response are equal
 		$this->llms_posts_fields_match( $sections[0], $res_data );
 		$this->assertEquals( $section_args['title']['rendered'], $res_data['title']['rendered'] );
+
+	}
+
+	/**
+	 * Test create a single section.
+	 *
+	 * @since [version]
+	 * @TODO abstract and move into class-llms-rest-unit-tes-case-posts.php
+	 */
+	public function test_section_order_autoincrement() {
+
+		wp_set_current_user( $this->user_allowed );
+
+		// create a course.
+		$course = $this->factory->course->create_and_get( array( 'sections' => 0 ) );
+		$course_id = $course->get( 'id' );
+
+		$request = new WP_REST_Request( 'POST', $this->route );
+		$section_args = $this->sample_section_args;
+		$section_args['parent_id'] = $course_id;
+
+		for ( $i=1; $i<4; $i++ ) {
+			$section_args[ 'title' ]['raw'] .= " - {$i}";
+
+			$request->set_body_params( $section_args );
+			$response = $this->server->dispatch( $request );
+
+			$res_data = $response->get_data();
+
+			// Success.
+			$this->assertEquals( 201, $response->get_status() );
+			$this->assertEquals( $i, $res_data['order'] );
+			$section = new LLMS_Section($res_data['id']);
+			$this->assertEquals( $section->get('order'), $res_data['order'] );
+		}
 
 	}
 
@@ -197,16 +232,6 @@ class LLMS_REST_Test_Sections extends LLMS_REST_Unit_Test_Case_Posts {
 		$this->assertResponseMessageEquals( 'Invalid parent_id param. It must be a valid Course ID.', $response );
 
 		$this->sample_section_args['parent_id'] = $course;
-
-		// Creating a section passing an order equal to 0 produces a bad request.
-		$section_args          = $this->sample_section_args;
-		$section_args['order'] = 0;
-		$request->set_body_params( $section_args );
-		$response = $this->server->dispatch( $request );
-
-		// Bad request.
-		$this->assertEquals( 400, $response->get_status() );
-		$this->assertResponseMessageEquals( 'Invalid order param. It must be greater than 0.', $response );
 
 		// create a section without title.
 		$section_args = $this->sample_section_args;
