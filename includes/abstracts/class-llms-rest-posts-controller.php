@@ -17,6 +17,7 @@ defined( 'ABSPATH' ) || exit;
  * @since 1.0.0-beta.2 Filter taxonomies by `public` property instead of `show_in_rest`.
  * @since 1.0.0-beta.3 Filter taxonomies by `show_in_llms_rest` property instead of `public`.
  * @since [version] Fix wp:featured_media link, we don't expose any embeddable field.
+ *                  Also `self` and `collection` links prepared in the parent class.
  */
 abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 
@@ -1137,21 +1138,16 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 	 * @since 1.0.0-beta.1
 	 * @since 1.0.0-beta.2 Filter taxonomies by `public` property instead of `show_in_rest`.
 	 * @since 1.0.0-beta.3 Filter taxonomies by `show_in_llms_rest` property instead of `public`.
+	 * @since [version] `self` and `collection` links prepared in the parent class.
 	 *
 	 * @param LLMS_Post_Model $object  Object data.
 	 * @return array Links for the given object.
 	 */
 	protected function prepare_links( $object ) {
-		$object_id = $object->get( 'id' );
 
-		$links = array(
-			'self'       => array(
-				'href' => rest_url( sprintf( '/%s/%s/%d', $this->namespace, $this->rest_base, $object_id ) ),
-			),
-			'collection' => array(
-				'href' => rest_url( sprintf( '/%s/%s', $this->namespace, $this->rest_base ) ),
-			),
-		);
+		$links = parent::prepare_links( $object );
+
+		$object_id = $object->get( 'id' );
 
 		// Content.
 		$links['content'] = array(
