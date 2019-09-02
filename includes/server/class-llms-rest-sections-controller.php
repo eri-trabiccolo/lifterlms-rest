@@ -5,7 +5,7 @@
  * @package LifterLMS_REST/Classes/Controllers
  *
  * @since 1.0.0-beta.1
- * @version 1.0.0-beta.1
+ * @version [version]
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -15,6 +15,7 @@ defined( 'ABSPATH' ) || exit;
  * LLMS_REST_Sections_Controller
  *
  * @since 1.0.0-beta.1
+ * @since Fix the way we get the section's parent course object when building the resource links.
  */
 class LLMS_REST_Sections_Controller extends LLMS_REST_Posts_Controller {
 
@@ -422,6 +423,9 @@ class LLMS_REST_Sections_Controller extends LLMS_REST_Posts_Controller {
 	/**
 	 * Prepare links for the request.
 	 *
+	 * @since 1.0.0-beta.1
+	 * @since [version] Fix the way we get the section's parent course object.
+	 *
 	 * @param LLMS_Section $section  LLMS Section.
 	 * @return array Links for the given object.
 	 */
@@ -435,10 +439,9 @@ class LLMS_REST_Sections_Controller extends LLMS_REST_Posts_Controller {
 		 */
 		if ( ! $parent_course_id ) {
 			return $links;
-
 		}
 
-		$parent_course = new LLMS_Course( $parent_course_id );
+		$parent_course = llms_get_post( $parent_course_id );
 		if ( ! is_a( $parent_course, 'LLMS_Course' ) ) {
 			return $links;
 		}
