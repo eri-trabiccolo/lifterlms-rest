@@ -5,7 +5,7 @@
  * @package LifterLMS_REST/Classes/Controllers
  *
  * @since 1.0.0-beta.1
- * @version 1.0.0-beta.1
+ * @version [version]
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -14,6 +14,8 @@ defined( 'ABSPATH' ) || exit;
  * LLMS_REST_Courses_Controller
  *
  * @since 1.0.0-beta.1
+ * @since [version] Overridden `get_object_id()` method to avoid using the deprecated `LLMS_Course::get_id()` which,
+ *                  as coded in the `LLMS_REST_Controller_Stubs::get_object_id()` takes precedence over `get( 'id' )`.
  */
 class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 
@@ -123,6 +125,21 @@ class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 	protected function get_object( $id ) {
 		$course = llms_get_post( $id );
 		return $course && is_a( $course, 'LLMS_Course' ) ? $course : llms_rest_not_found_error();
+	}
+
+	/**
+	 * Retrieve an ID from the object
+	 *
+	 * @since [version]
+	 *
+	 * @param LLMS_Course $object LLMS_Course object.
+	 * @return int
+	 */
+	protected function get_object_id( $object ) {
+
+		// For example.
+		return $object->get( 'id' );
+
 	}
 
 	/**
