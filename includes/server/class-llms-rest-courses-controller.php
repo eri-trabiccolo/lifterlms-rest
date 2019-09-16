@@ -5,7 +5,7 @@
  * @package LifterLMS_REST/Classes/Controllers
  *
  * @since 1.0.0-beta.1
- * @version 1.0.0-beta.1
+ * @version [version]
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -14,6 +14,10 @@ defined( 'ABSPATH' ) || exit;
  * LLMS_REST_Courses_Controller
  *
  * @since 1.0.0-beta.1
+ * @since [version] Allow `prerequisite` and `prerequisite_track` to be cleared (set to 0).
+ *                  Also:
+ *                  - if `prerequisite` is not a valid course the course `prerequisite` will be set to 0;
+ *                  - if `prerequisite_track` is not a valid course track, the course `prerequisite_track` will be set to 0.
  */
 class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 
@@ -748,6 +752,10 @@ class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 	 * Updates a single llms post.
 	 *
 	 * @since 1.0.0-beta.1
+	 * @since [version] Allow `prerequisite` and `prerequisite_track` to be ted.
+	 *                  Also:
+	 *                  - if `prerequisite` is not a valid course the course `prerequisite` will be set to 0;
+	 *                  - if `prerequisite_track` is not a valid course track, the course `prerequisite_track` will be set to 0.
 	 *
 	 * @param LLMS_Course     $course        LLMS_Course instance.
 	 * @param WP_REST_Request $request       Full details about the request.
@@ -791,6 +799,8 @@ class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 			$prerequisite = llms_get_post( $request['prerequisite'] );
 			if ( is_a( $prerequisite, 'LLMS_Course' ) ) {
 				$to_set['prerequisite'] = $request['prerequisite'];
+			} else {
+				$to_set['prerequisite'] = 0;
 			}
 		}
 
@@ -800,6 +810,8 @@ class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 			$track = new LLMS_Track( $request['prerequisite_track'] );
 			if ( $track->term ) {
 				$to_set['prerequisite_track'] = $request['prerequisite_track'];
+			} else {
+				$to_set['prerequisite_track'] = 0;
 			}
 		}
 
