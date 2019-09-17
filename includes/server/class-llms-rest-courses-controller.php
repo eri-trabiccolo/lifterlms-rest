@@ -18,6 +18,13 @@ defined( 'ABSPATH' ) || exit;
  *                  Also:
  *                  - if `prerequisite` is not a valid course the course `prerequisite` will be set to 0;
  *                  - if `prerequisite_track` is not a valid course track, the course `prerequisite_track` will be set to 0.
+ *
+ *                  `update_additional_object_fields()` returns false if nothing to update.
+ *                  Properties `access_opens_date`, `access_closes_date`, `enrollment_opens_date`, `enrollment_closes_date` handling
+ *                  moved here from `prepare_item_for_database()` method to `update_additional_object_fields()` method so to better handle the updating of the
+ *                  course's properties `time_period` and `enrollment_period`.
+ *                  Added logic to prevent trying to update "derived only" courses's properties (`time_period`, `enrollment_period`, `has_prerequisite`)
+ *                  if their values didn't really change, otherwise we'd get an WP_Error which the consumer cannot avoid having no direct control on those properties.
  */
 class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 
@@ -629,8 +636,13 @@ class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 	 * Prepares a single post for create or update.
 	 *
 	 * @since 1.0.0-beta.1
+	 * @since [version] `access_opens_date`, `access_closes_date`, `enrollment_opens_date`, `enrollment_closes_date`
+	 *                  treated in @see `update_additional_object_fields()` method so to better handle the updating of the
+	 *                  course's properties `time_period` and `enrollment_period` whose values are derived from them and need to be
+	 *                  passed to `$course->set_bulk()` only if they differ from their current values, otherwise we'd get an WP_Error
+	 *                  which the consumer cannot avoid having no direct control on those properties.
 	 *
-	 * @param WP_REST_Request $request  Request object.
+	 * @param WP_REST_Request $request Request object.
 	 * @return array|WP_Error Array of llms post args or WP_Error.
 	 */
 	protected function prepare_item_for_database( $request ) {
@@ -690,42 +702,6 @@ class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 			}
 		}
 
-		// Access dates.
-		if ( ! empty( $schema['properties']['access_opens_date'] ) && isset( $request['access_opens_date'] ) ) {
-			$access_opens_date           = rest_parse_date( $request['access_opens_date'] );
-			$prepared_item['start_date'] = date_i18n( 'Y-m-d H:i:s', $access_opens_date );
-		}
-
-		if ( ! empty( $schema['properties']['access_closes_date'] ) && isset( $request['access_closes_date'] ) ) {
-			$access_closes_date        = rest_parse_date( $request['access_closes_date'] );
-			$prepared_item['end_date'] = date_i18n( 'Y-m-d H:i:s', $access_closes_date );
-		}
-
-		// Needed until the following will be implemented: https://github.com/gocodebox/lifterlms/issues/908.
-		if ( ! empty( $prepared_item['start_date'] ) || ! empty( $prepared_item['end_date'] ) ) {
-			$prepared_item['time_period'] = 'yes';
-		} else {
-			$prepared_item['time_period'] = 'no';
-		}
-
-		// Enrollment dates.
-		if ( ! empty( $schema['properties']['enrollment_opens_date'] ) && isset( $request['enrollment_opens_date'] ) ) {
-			$enrollment_opens_date                  = rest_parse_date( $request['enrollment_opens_date'] );
-			$prepared_item['enrollment_start_date'] = date_i18n( 'Y-m-d H:i:s', $enrollment_opens_date );
-		}
-
-		if ( ! empty( $schema['properties']['enrollment_closes_date'] ) && isset( $request['enrollment_closes_date'] ) ) {
-			$enrollment_closes_date               = rest_parse_date( $request['enrollment_closes_date'] );
-			$prepared_item['enrollment_end_date'] = date_i18n( 'Y-m-d H:i:s', $enrollment_closes_date );
-		}
-
-		// Needed until the following will be implemented: https://github.com/gocodebox/lifterlms/issues/908.
-		if ( ! empty( $prepared_item['enrollment_start_date'] ) || ! empty( $prepared_item['enrollment_end_date'] ) ) {
-			$prepared_item['enrollment_period'] = 'yes';
-		} else {
-			$prepared_item['enrollment_period'] = 'no';
-		}
-
 		// Sales page.
 		if ( ! empty( $schema['properties']['sales_page_page_type'] ) && isset( $request['sales_page_page_type'] ) ) {
 			$prepared_item['sales_page_content_type'] = $request['sales_page_page_type'];
@@ -749,20 +725,26 @@ class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 	}
 
 	/**
-	 * Updates a single llms post.
+	 * Updates a single llms course.
 	 *
 	 * @since 1.0.0-beta.1
 	 * @since [version] Allow `prerequisite` and `prerequisite_track` to be ted.
 	 *                  Also:
 	 *                  - if `prerequisite` is not a valid course the course `prerequisite` will be set to 0;
 	 *                  - if `prerequisite_track` is not a valid course track, the course `prerequisite_track` will be set to 0.
+	 *                  Return false if nothing to update.
+	 *                  Properties `access_opens_date`, `access_closes_date`, `enrollment_opens_date`, `enrollment_closes_date` handling
+	 *                  moved here from `prepare_item_for_database()` method so to better handle the updating of the
+	 *                  course's properties `time_period` and `enrollment_period`.
+	 *                  Added logic to prevent trying to update "derived only" courses's properties (`time_period`, `enrollment_period`, `has_prerequisite`)
+	 *                  if their values didn't really change, otherwise we'd get an WP_Error which the consumer cannot avoid having no direct control on those properties.
 	 *
 	 * @param LLMS_Course     $course        LLMS_Course instance.
 	 * @param WP_REST_Request $request       Full details about the request.
 	 * @param array           $schema        The item schema.
 	 * @param array           $prepared_item Array.
 	 * @param bool            $creating      Optional. Whether we're in creation or update phase. Default true (create).
-	 * @return bool|WP_Error True on success, WP_Error object otherwise.
+	 * @return bool|WP_Error True on success or false if nothing to update, WP_Error object if something went wrong during the update.
 	 */
 	protected function update_additional_object_fields( $course, $request, $schema, $prepared_item, $creating = true ) {
 
@@ -792,6 +774,42 @@ class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 		}
 
 		$to_set = array();
+
+		// Access dates.
+		if ( ! empty( $schema['properties']['access_opens_date'] ) && isset( $request['access_opens_date'] ) ) {
+			$access_opens_date    = rest_parse_date( $request['access_opens_date'] );
+			$to_set['start_date'] = date_i18n( 'Y-m-d H:i:s', $access_opens_date );
+		}
+
+		if ( ! empty( $schema['properties']['access_closes_date'] ) && isset( $request['access_closes_date'] ) ) {
+			$access_closes_date = rest_parse_date( $request['access_closes_date'] );
+			$to_set['end_date'] = date_i18n( 'Y-m-d H:i:s', $access_closes_date );
+		}
+
+		// Needed until the following will be implemented: https://github.com/gocodebox/lifterlms/issues/908.
+		if ( ! empty( $to_set['start_date'] ) || ! empty( $to_set['end_date'] ) ) {
+			$to_set['time_period'] = 'yes';
+		} else {
+			$to_set['time_period'] = 'no';
+		}
+
+		// Enrollment dates.
+		if ( ! empty( $schema['properties']['enrollment_opens_date'] ) && isset( $request['enrollment_opens_date'] ) ) {
+			$enrollment_opens_date           = rest_parse_date( $request['enrollment_opens_date'] );
+			$to_set['enrollment_start_date'] = date_i18n( 'Y-m-d H:i:s', $enrollment_opens_date );
+		}
+
+		if ( ! empty( $schema['properties']['enrollment_closes_date'] ) && isset( $request['enrollment_closes_date'] ) ) {
+			$enrollment_closes_date        = rest_parse_date( $request['enrollment_closes_date'] );
+			$to_set['enrollment_end_date'] = date_i18n( 'Y-m-d H:i:s', $enrollment_closes_date );
+		}
+
+		// Needed until the following will be implemented: https://github.com/gocodebox/lifterlms/issues/908.
+		if ( ! empty( $to_set['enrollment_start_date'] ) || ! empty( $to_set['enrollment_end_date'] ) ) {
+			$to_set['enrollment_period'] = 'yes';
+		} else {
+			$to_set['enrollment_period'] = 'no';
+		}
 
 		// Prerequisite.
 		if ( ! empty( $schema['properties']['prerequisite'] ) && isset( $request['prerequisite'] ) ) {
@@ -878,6 +896,18 @@ class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 					$to_set[ $prop ] = str_replace( '{{course_id}}', $course_id, $to_set[ $prop ] );
 				}
 			}
+		} else { // Needed until the following will be implemented: https://github.com/gocodebox/lifterlms/issues/908.
+
+			$_props = array(
+				'time_period',
+				'enrollment_period',
+				'has_prerequisite',
+			);
+			foreach ( $_props as $_prop ) {
+				if ( isset( $to_set[ $_prop ] ) && $to_set[ $_prop ] === $course->get( $_prop ) ) {
+					unset( $to_set[ $_prop ] );
+				}
+			}
 		}
 
 		// Set bulk.
@@ -888,7 +918,11 @@ class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 			}
 		}
 
-		return $error->has_errors() ? $error : true;
+		if ( $error->has_errors() ) {
+			return $error;
+		}
+
+		return ! empty( $to_set );
 
 	}
 

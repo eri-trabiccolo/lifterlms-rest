@@ -5,7 +5,7 @@
  * @package LifterLMS_REST/Abstracts
  *
  * @since 1.0.0-beta.1
- * @version 1.0.0-beta.2
+ * @version [version]
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -16,6 +16,7 @@ defined( 'ABSPATH' ) || exit;
  * @since 1.0.0-beta.1
  * @since 1.0.0-beta.2 Filter taxonomies by `public` property instead of `show_in_rest`.
  * @since 1.0.0-beta.3 Filter taxonomies by `show_in_llms_rest` property instead of `public`.
+ * @since [version] On `update_item`, don't execute `$object->set_bulk()` when there's no data to update.
  */
 abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 
@@ -397,9 +398,11 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 	/**
 	 * Updates a single llms post.
 	 *
-	 * Extending classes can add additional object fields by overriding the method update_additional_object_fields().
+	 * Extending classes can add additional object fields by overriding the method `update_additional_object_fields()`.
 	 *
 	 * @since 1.0.0-beta.1
+	 * @since [version] Don't execute `$object->set_bulk()` when there's no data to update:
+	 *                  this fixes an issue when updating only properties which are not handled in `prepare_item_for_database()`.
 	 *
 	 * @param WP_REST_Request $request Full details about the request.
 	 * @return WP_REST_Response|WP_Error Response object on success, or WP_Error object on failure.
@@ -416,7 +419,7 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 			return $prepared_item;
 		}
 
-		$update_result = $object->set_bulk( $prepared_item, true );
+		$update_result = empty( array_diff_key( $prepared_item, array_flip( array( 'id' ) ) ) ) ? false : $object->set_bulk( $prepared_item, true );
 		if ( is_wp_error( $update_result ) ) {
 
 			if ( 'db_update_error' === $update_result->get_error_code() ) {
@@ -463,12 +466,13 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 	 * Updates a single llms post.
 	 *
 	 * @since 1.0.0-beta.1
+	 * @since [version] return description updated.
 	 *
 	 * @param LLMS_Post_Model $object        LMMS_Post_Model instance.
 	 * @param array           $prepared_item Array.
 	 * @param WP_REST_Request $request       Full details about the request.
 	 * @param array           $schema        The item schema.
-	 * @return bool|WP_Error True on success, WP_Error object otherwise.
+	 * @return bool|WP_Error True on success or false if nothing to update, WP_Error object if something went wrong during the update.
 	 */
 	protected function update_additional_object_fields( $object, $prepared_item, $request, $schema ) {
 		return true;
