@@ -24,7 +24,9 @@ defined( 'ABSPATH' ) || exit;
  *                  moved here from `prepare_item_for_database()` method to `update_additional_object_fields()` method so to better handle the updating of the
  *                  course's properties `time_period` and `enrollment_period`.
  *                  Added logic to prevent trying to update "derived only" courses's properties (`time_period`, `enrollment_period`, `has_prerequisite`)
- *                  if their values didn't really change, otherwise we'd get an WP_Error which the consumer cannot avoid having no direct control on those properties.
+ *                  if their values didn't really change, otherwise we'd get a `WP_Error` which the consumer cannot avoid having no direct control on those properties.
+ *
+ *                  In `update_additional_object_fields()` method, use `WP_Error::$errors` in place of `WP_Error::has_errors()` to support WordPress version prior to 5.1.
  */
 class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 
@@ -739,6 +741,8 @@ class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 	 *                  Added logic to prevent trying to update "derived only" courses's properties (`time_period`, `enrollment_period`, `has_prerequisite`)
 	 *                  if their values didn't really change, otherwise we'd get an WP_Error which the consumer cannot avoid having no direct control on those properties.
 	 *
+	 *                  Use `WP_Error::$errors` in place of `WP_Error::has_errors()` to support WordPress version prior to 5.1.
+	 *
 	 * @param LLMS_Course     $course        LLMS_Course instance.
 	 * @param WP_REST_Request $request       Full details about the request.
 	 * @param array           $schema        The item schema.
@@ -918,7 +922,7 @@ class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 			}
 		}
 
-		if ( $error->has_errors() ) {
+		if ( ! empty( $error->errors ) ) {
 			return $error;
 		}
 
