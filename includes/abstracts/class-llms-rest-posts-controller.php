@@ -24,6 +24,7 @@ defined( 'ABSPATH' ) || exit;
  *                     Also `self` and `collection` links prepared in the parent class.
  *                     Added `"llms_rest_insert_{$this->post_type}"` and `"llms_rest_insert_{$this->post_type}"` action hooks:
  *                     fired after inserting/uodateing an llms post into the database.
+ * @since [version] When preparing a resource for response, prepare WP_Query for restrictions checks.
  */
 abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 
@@ -725,6 +726,8 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 		$password_required = post_password_required( $object_id );
 		$password          = $object->get( 'password' );
 
+		$page_restricted    = llms_page_restricted( $object->get( 'id' ) );
+
 		$data = array(
 			'id'               => $object->get( 'id' ),
 			'date_created'     => $object->get_date( 'date', 'Y-m-d H:i:s' ),
@@ -745,14 +748,16 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 			'comment_status'   => $object->get( 'comment_status' ),
 			'ping_status'      => $object->get( 'ping_status' ),
 			'content'          => array(
-				'raw'       => $object->get( 'content', true ),
-				'rendered'  => $password_required ? '' : apply_filters( 'the_content', $object->get( 'content', true ) ),
-				'protected' => (bool) $password,
+				'raw'        => $object->get( 'content', true ),
+				'rendered'   => $password_required ? '' : apply_filters( 'the_content', $object->get( 'content', true ) ),
+				'protected'  => (bool) $password,
+				'restricted' => $page_restricted['is_restricted'],
 			),
 			'excerpt'          => array(
-				'raw'       => $object->get( 'excerpt', true ),
-				'rendered'  => $password_required ? '' : apply_filters( 'the_excerpt', $object->get( 'excerpt' ) ),
-				'protected' => (bool) $password,
+				'raw'        => $object->get( 'excerpt', true ),
+				'rendered'   => $password_required ? '' : apply_filters( 'the_excerpt', $object->get( 'excerpt' ) ),
+				'protected'  => (bool) $password,
+				'restricted' => $page_restricted['is_restricted'],
 			),
 		);
 
@@ -764,6 +769,7 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 	 * Prepare a single item for the REST response
 	 *
 	 * @since 1.0.0-beta.1
+	 * @since [version] WP_Query prepared for restrictions checks.
 	 *
 	 * @param LLMS_Post_Model $object  LLMS post object.
 	 * @param WP_REST_Request $request Request object.
@@ -774,10 +780,15 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 		$context = ! empty( $request['context'] ) ? $request['context'] : 'view';
 
 		// Need to set the global $post because of references to the global $post when e.g. filtering the content, or processing blocks/shortcodes.
-		global $post;
-		$temp = $post;
-		$post = $object->get( 'post' ); // phpcs:ignore
+		global $post, $wp_query;
+		$temp       = $post;
+		$post       = $object->get( 'post' ); // phpcs:ignore
+		$temp_query = $wp_query;
 		setup_postdata( $post );
+
+		$wp_query->is_singular       = true;
+		$wp_query->queried_object    = $post;
+		$wp_query->queried_object_id = $post->ID;
 
 		$removed_filters_for_response = $this->maybe_remove_filters_for_response( $object );
 
@@ -791,20 +802,25 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 
 		$data = $this->prepare_object_for_response( $object, $request );
 
+		// Filter data including only schema props.
+		$data = array_intersect_key( $data, array_flip( $this->get_fields_for_response( $request ) ) );
+
+		// Filter data by context. E.g. in "view" mode the password property won't be allowed.
+		$data = $this->filter_response_by_context( $data, $context );
+
+		// Maybe apply restrictions to some properties.
+		$data = $this->maybe_restrict_object_data( $data, $object );
+
+		$post     = $temp; // phpcs:ignore
+		$wp_query = $temp_query; // phpcs:ignore
+		wp_reset_postdata();
+
 		if ( $has_password_filter ) {
 			// Reset filter.
 			remove_filter( 'post_password_required', '__return_false' );
 		}
 
 		$this->maybe_add_removed_filters_for_response( $removed_filters_for_response );
-		$post = $temp; // phpcs:ignore
-		wp_reset_postdata();
-
-		// Filter data including only schema props.
-		$data = array_intersect_key( $data, array_flip( $this->get_fields_for_response( $request ) ) );
-
-		// Filter data by context. E.g. in "view" mode the password property won't be allowed.
-		$data = $this->filter_response_by_context( $data, $context );
 
 		// Wrap the data in a response object.
 		$response = rest_ensure_response( $data );
@@ -813,6 +829,19 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 		$response->add_links( $links );
 
 		return $response;
+	}
+
+	/**
+	 * Maybe apply restrictions on object's data properties.
+	 *
+	 * @since [version]
+	 *
+	 * @param array           $data   Array of object data.
+	 * @param LLMS_Post_Model $object object object.
+	 * @return array
+	 */
+	protected function maybe_restrict_object_data( $data, $object ) {
+		return $data;
 	}
 
 	/**
@@ -1081,6 +1110,12 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 							'context'     => array( 'view', 'edit' ),
 							'readonly'    => true,
 						),
+						'restricted' => array(
+							'description' => __( 'Whether the content is restricted.', 'lifterlms' ),
+							'type'        => 'boolean',
+							'context'     => array( 'view', 'edit' ),
+							'readonly'    => true,
+						),
 					),
 				),
 				'excerpt'          => array(
@@ -1105,6 +1140,12 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 						),
 						'protected' => array(
 							'description' => __( 'Whether the excerpt is protected with a password.', 'lifterlms' ),
+							'type'        => 'boolean',
+							'context'     => array( 'view', 'edit' ),
+							'readonly'    => true,
+						),
+						'restricted' => array(
+							'description' => __( 'Whether the content is restricted.', 'lifterlms' ),
 							'type'        => 'boolean',
 							'context'     => array( 'view', 'edit' ),
 							'readonly'    => true,
@@ -1591,6 +1632,46 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 
 		// Double-check the request password.
 		return hash_equals( $object->get( 'password' ), $request['password'] );
+	}
+
+	/**
+	 * Modify llms_page_restricted for qualifying users to allow them to bypass restrictions
+	 *
+	 * @since [version]
+	 *
+	 * @param array $restrictions Restriction data.
+	 * @return array Possibly modified restriction data.
+	 */
+	public function modify_restrictions( $restrictions ) {
+
+		if ( llms_can_user_bypass_restrictions( get_current_user_id() ) ) {
+
+			$restrictions['is_restricted'] = false;
+			$restrictions['reason']        = 'role-access';
+
+		}
+
+		return $restrictions;
+	}
+
+	/**
+	 * Modify the status of a course access period based on the current user caps.
+	 *
+	 * @since [version]
+	 *
+	 * @param  boolean $status Default status.
+	 * @return boolean
+	 */
+	public function modify_course_open( $status ) {
+
+		if ( llms_can_user_bypass_restrictions( get_current_user_id() ) ) {
+
+			return true;
+
+		}
+
+		return $status;
+
 	}
 
 }

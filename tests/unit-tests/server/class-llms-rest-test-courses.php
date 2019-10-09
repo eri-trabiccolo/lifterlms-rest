@@ -372,6 +372,49 @@ class LLMS_REST_Test_Courses extends LLMS_REST_Unit_Test_Case_Posts {
 
 
 	/**
+	 * Test getting a single course with sales page props.
+	 * @group aja
+	 * @since [version]
+	 */
+	public function test_get_course_with_sales_page() {
+
+		wp_set_current_user( $this->user_forbidden );
+
+		// Setup course.
+		$course = $this->factory->course->create_and_get();
+
+		// set sales page custom content.
+		$course->set( 'sales_page_content_type', 'content' );
+		$course->set( 'excerpt', 'I expect to see this' );
+
+		$response = $this->perform_mock_request( 'GET', $this->route . '/' . $course->get( 'id' ) );
+		$res_data = $response->get_data();
+		$this->assertEquals( '<p>I expect to see this</p>' , rtrim( $res_data['content']['rendered'], "\n" ) );
+		$this->assertTrue( $res_data['content']['restricted'] );
+		$this->assertEquals( '<p>I expect to see this</p>' , rtrim( $res_data['excerpt']['rendered'], "\n" ) );
+		$this->assertTrue( $res_data['excerpt']['restricted'] );
+
+		// set sales page with redirection to a page.
+		$course->set( 'sales_page_content_type', 'page' );
+		$response = $this->perform_mock_request( 'GET', $this->route . '/' . $course->get( 'id' ) );
+		$res_data = $response->get_data();
+		$this->assertEquals( '' , $res_data['content']['rendered'] );
+		$this->assertTrue( $res_data['content']['restricted'] );
+		$this->assertEquals( '' , $res_data['excerpt']['rendered'] );
+		$this->assertTrue( $res_data['excerpt']['restricted'] );
+
+		// set sales page with redirection to an URL.
+		$course->set( 'sales_page_content_type', 'page' );
+		$response = $this->perform_mock_request( 'GET', $this->route . '/' . $course->get( 'id' ) );
+		$res_data = $response->get_data();
+		$this->assertEquals( '' , $res_data['content']['rendered'] );
+		$this->assertTrue( $res_data['content']['restricted'] );
+		$this->assertEquals( '' , $res_data['excerpt']['rendered'] );
+		$this->assertTrue( $res_data['excerpt']['restricted'] );
+
+	}
+
+	/**
 	 * Test getting single course without permission.
 	 *
 	 * @since 1.0.0-beta.1
@@ -431,7 +474,7 @@ class LLMS_REST_Test_Courses extends LLMS_REST_Unit_Test_Case_Posts {
 
 	/**
 	 * Test creating a single course.
-	 *
+	 * @group wtf
 	 * @since 1.0.0-beta.1
 	 * @since Add checks on nullable dates.
 	 */
@@ -714,7 +757,7 @@ class LLMS_REST_Test_Courses extends LLMS_REST_Unit_Test_Case_Posts {
 	}
 
 	/**
-	 * Test creating a single course with taxonomies
+	 * Test creating a single course with taxonomies.
 	 *
 	 * @since 1.0.0-beta.1
 	 */
@@ -984,10 +1027,7 @@ class LLMS_REST_Test_Courses extends LLMS_REST_Unit_Test_Case_Posts {
 
 		wp_set_current_user( $this->user_forbidden );
 
-		$request = new WP_REST_Request( 'POST', $this->route );
-
-		$request->set_body_params( $this->sample_course_args );
-		$response = $this->server->dispatch( $request );
+		$response = $this->perform_mock_request( 'POST', $this->route, $this->sample_course_args );
 
 		// Forbidden.
 		$this->assertEquals( 403, $response->get_status() );
@@ -1000,6 +1040,7 @@ class LLMS_REST_Test_Courses extends LLMS_REST_Unit_Test_Case_Posts {
 	 *
 	 * @since 1.0.0-beta.1
 	 * @since 1.0.0-beta.7 Add tests on prerequisites.
+	 * @group wtf
 	 */
 	public function test_update_course() {
 
@@ -1007,6 +1048,11 @@ class LLMS_REST_Test_Courses extends LLMS_REST_Unit_Test_Case_Posts {
 		$course = $this->factory->course->create_and_get();
 
 		wp_set_current_user( $this->user_allowed );
+		$llms_view_manager = new LLMS_View_Manager();
+		$llms_view_manager->add_actions();
+
+		// enroll the user.
+		//llms_enroll_student( $this->user_allowed, $course->get('id'), 'test_get_enrollments' );
 
 		// update.
 		$update_data = array(
@@ -1027,7 +1073,7 @@ class LLMS_REST_Test_Courses extends LLMS_REST_Unit_Test_Case_Posts {
 		$this->assertEquals( $update_data['title'], $res_data['title']['rendered'] );
 		$this->assertEquals( rtrim( apply_filters( 'the_content', $update_data['content'] ), "\n" ), rtrim( $res_data['content']['rendered'], "\n" ) );
 		$this->assertEquals( $update_data['date_created'], $res_data['date_created'] );
-		$this->assertEquals( $update_data['status'], $res_data['status'] );
+	    $this->assertEquals( $update_data['status'], $res_data['status'] );
 
 		// check the course has no prerequisites.
 		$course = new LLMS_Course( $res_data['id'] );
