@@ -37,6 +37,7 @@ defined( 'ABSPATH' ) || exit;
  *                     Add missing quotes in enrollment/access default messages shortcodes.
  *                     Call `set_bulk()` llms post method passing `true` as second parameter, so to instruct it to return a WP_Error on failure.
  *                     Add missing quotes in enrollment/access default messages shortcodes.
+ * @since [version] Course's enrollments cannot be filtered by `status`.
  */
 class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 
@@ -158,7 +159,6 @@ class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 	 */
 	protected function get_object_id( $object ) {
 
-		// For example.
 		return $object->get( 'id' );
 
 	}
@@ -340,7 +340,6 @@ class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 				'properties'  => array(
 					'raw'      => array(
 						'description' => __( 'Raw message content.', 'lifterlms' ),
-						'default'     => __( 'You must enroll in this course to access course content.', 'lifterlms' ),
 						'type'        => 'string',
 						'context'     => array( 'edit' ),
 					),
@@ -1130,13 +1129,14 @@ class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 	 * Retrieves the query params for the enrollments objects collection.
 	 *
 	 * @since 1.0.0-beta.1
+	 * @since [version] Course's enrollments cannot be filtered by `status`.
 	 *
 	 * @return array Collection parameters.
 	 */
 	public function get_enrollments_collection_params() {
 		$query_params = $this->enrollments_controller->get_collection_params();
 
-		unset( $query_params['post'] );
+		unset( $query_params['post'], $query_params['status'] );
 
 		$query_params['student'] = array(
 			'description'       => __( 'Limit results to a specific student or a list of students. Accepts a single student id or a comma separated list of student ids.', 'lifterlms' ),
