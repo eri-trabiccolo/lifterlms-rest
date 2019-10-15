@@ -607,7 +607,7 @@ class LLMS_REST_Memberships_Controller extends LLMS_REST_Posts_Controller {
 		if ( $auto_enroll_courses ) {
 			$membership_links['auto_enrollment_courses'] = array(
 				'href' => add_query_arg(
-					'post',
+					'include',
 					$auto_enroll_courses,
 					rest_url( sprintf( '%s/%s', 'llms/v1', 'courses' ) )
 				),
@@ -664,7 +664,10 @@ class LLMS_REST_Memberships_Controller extends LLMS_REST_Posts_Controller {
 		unset( $query_params['post'], $query_params['status'] );
 
 		$query_params['student'] = array(
-			'description'       => __( 'Limit results to a specific student or a list of students. Accepts a single student id or a comma separated list of student ids.', 'lifterlms' ),
+			'description'       => __(
+				'Limit results to a specific student or a list of students. Accepts a single student id or a comma separated list of student ids.',
+				'lifterlms'
+			),
 			'type'              => 'string',
 			'validate_callback' => 'rest_validate_request_arg',
 		);
