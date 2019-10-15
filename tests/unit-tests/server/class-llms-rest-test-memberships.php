@@ -63,6 +63,22 @@ class LLMS_REST_Test_Memberships extends LLMS_REST_Unit_Test_Case_Posts {
 	);
 
 	/**
+	 * Array of link $rels expected for each item.
+	 *
+	 * @var array
+	 */
+	private $expected_link_rels = array(
+		'self',
+		'collection',
+		'https://api.w.org/term',
+		'access_plans',
+		'auto_enrollment_courses',
+		'enrollments',
+		'instructors',
+		'students',
+	);
+
+	/**
 	 *
 	 * Setup our test server, endpoints, and user info.
 	 *
@@ -332,6 +348,51 @@ class LLMS_REST_Test_Memberships extends LLMS_REST_Unit_Test_Case_Posts {
 		$res_data = $response->get_data();
 		$this->assertEquals( 1, count( $res_data ) );
 		$this->assertEquals( $student_ids[0], $res_data[0]['student_id'] );
+
+	}
+
+	/**
+	 * Test links.
+	 *
+	 * @since [version]
+	 *
+	 * @return void
+	 */
+	public function test_links() {
+
+		wp_set_current_user( $this->user_allowed );
+		// create two courses to autoenroll.
+		$course_ids = $this->factory->course->create_many( 2, array( 0, 0, 0, 0 ) );
+		// create 3 memberships.
+		$memberships = $this->factory->post->create_many( 3, array( 'post_type' => 'llms_membership' ) );
+		$i = 1;
+		foreach ( $memberships as $membership_id ) {
+
+			$membership = new LLMS_Membership( $membership_id );
+
+			/**
+			 * add auto enroll except for the latest membership.
+			 */
+			if ( 3 !== $i++ ) {
+				$membership->add_auto_enroll_courses( $course_ids, true );
+			}
+
+			$response = $this->perform_mock_request( 'GET', $this->route . '/' . $membership->get( 'id' ) );
+
+			$expected_link_rels = array();
+			if ( empty( $membership->get_auto_enroll_courses() ) ) {
+				foreach ( $this->expected_link_rels as $link_rel ) {
+					if ( 'auto_enrollment_courses' !== $link_rel ) {
+						$expected_link_rels[] = $link_rel;
+					}
+				}
+			} else {
+				$expected_link_rels = $this->expected_link_rels;
+			}
+
+			$this->assertEquals( $expected_link_rels, array_keys( $response->get_links() ) );
+
+		}
 
 	}
 
