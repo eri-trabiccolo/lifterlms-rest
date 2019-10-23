@@ -299,6 +299,7 @@ class LLMS_REST_Test_Memberships extends LLMS_REST_Unit_Test_Case_Posts {
 		// check instructor == author (default).
 		$this->assertEquals( $membership->get( 'author' ), wp_list_pluck( $membership->get_instructors(), 'id' )[0] );
 		$this->assertEquals( $membership->get( 'author' ), $res_data['instructors'][0] );
+		$this->assertEquals( array( $this->user_allowed ), wp_list_pluck( get_post_meta( $res_data['id'], '_llms_instructors', true ), 'id' ) );
 
 		// check that even if the membership has been created with no restriction message,
 		// the `restriction_add_notice` property post property is 'yes'.
@@ -309,6 +310,40 @@ class LLMS_REST_Test_Memberships extends LLMS_REST_Unit_Test_Case_Posts {
 		$this->assertEquals( do_shortcode( 'You must belong to the [lifterlms_membership_link id="' . $res_data['id'] . '" membership to access this content.' ), $res_data['restriction_message']['rendered'] );
 		$this->assertEquals( $membership->get( 'restriction_notice', true ), $res_data['restriction_message']['raw'] );
 
+	}
+
+	/**
+	 * Test creating a single membership with incorrect list of instructors.
+	 *
+	 * @since [version]
+	 */
+	public function test_create_item_with_bad_instructors_list() {
+
+		wp_set_current_user( $this->user_allowed );
+
+		// The list cannot contain not existent ids.
+		$sample_membership_args = array_merge(
+			$this->sample_membership_args,
+			array(
+				'instructors' => array(
+					get_current_user_id(),
+					7383931
+				),
+			)
+		);
+		$response = $this->perform_mock_request( 'POST', $this->route, $sample_membership_args );
+		// 400 error.
+		$this->assertResponseStatusEquals( 400, $response );
+		// The list cannot be empty.
+		$sample_membership_args = array_merge(
+			$this->sample_membership_args,
+			array(
+				'instructors' => array(),
+			)
+		);
+		$response = $this->perform_mock_request( 'POST', $this->route, $sample_membership_args );
+		// 400 error.
+		$this->assertResponseStatusEquals( 400, $response );
 	}
 
 	/**
