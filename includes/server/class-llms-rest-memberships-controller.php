@@ -200,7 +200,7 @@ class LLMS_REST_Memberships_Controller extends LLMS_REST_Posts_Controller {
 						'readonly'    => true,
 					),
 				),
-				'default'     => __( 'You must belong to the [lifterlms_membership_link id="{{membership_id}}" membership to access this content.', 'lifterlms' ),
+				'default'     => __( 'You must belong to the [lifterlms_membership_link id="{{membership_id}}"] membership to access this content.', 'lifterlms' ),
 			),
 			'restriction_page_id' => array(
 				'description' => __(
@@ -338,7 +338,8 @@ class LLMS_REST_Memberships_Controller extends LLMS_REST_Posts_Controller {
 		// Sales page id/url.
 		if ( 'page' === $data['sales_page_type'] ) {
 			$data['sales_page_page_id'] = $membership->get( 'sales_page_content_page_id' );
-		} elseif ( 'url' === $data['sales_page_type'] ) {
+		}
+		if ( 'url' === $data['sales_page_type'] ) {
 			$data['sales_page_url'] = $membership->get( 'sales_page_content_url' );
 		}
 

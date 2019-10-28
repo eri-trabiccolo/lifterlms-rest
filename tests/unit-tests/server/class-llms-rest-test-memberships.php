@@ -306,8 +306,8 @@ class LLMS_REST_Test_Memberships extends LLMS_REST_Unit_Test_Case_Posts {
 		$this->assertEquals( 'yes', $membership->get( 'restriction_add_notice' ) );
 
 		// Check anyways the default `restriction_message` has been correctly created.
-		$this->assertEquals( 'You must belong to the [lifterlms_membership_link id="' . $res_data['id'] . '" membership to access this content.', $res_data['restriction_message']['raw'] );
-		$this->assertEquals( do_shortcode( 'You must belong to the [lifterlms_membership_link id="' . $res_data['id'] . '" membership to access this content.' ), $res_data['restriction_message']['rendered'] );
+		$this->assertEquals( 'You must belong to the [lifterlms_membership_link id="' . $res_data['id'] . '"] membership to access this content.', $res_data['restriction_message']['raw'] );
+		$this->assertEquals( do_shortcode( 'You must belong to the [lifterlms_membership_link id="' . $res_data['id'] . '"] membership to access this content.' ), $res_data['restriction_message']['rendered'] );
 		$this->assertEquals( $membership->get( 'restriction_notice', true ), $res_data['restriction_message']['raw'] );
 
 	}
