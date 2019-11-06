@@ -29,7 +29,7 @@ get:
         minimum: 1
         example: 789
     - name: course
-      description: Filter quizzes by the parent couse ID.
+      description: Filter quizzes by the parent course ID.
       in: query
       schema:
         type: integer

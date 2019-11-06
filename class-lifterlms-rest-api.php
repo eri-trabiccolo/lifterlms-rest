@@ -20,6 +20,7 @@ require_once LLMS_REST_API_PLUGIN_DIR . 'includes/traits/class-llms-rest-trait-s
  * @since 1.0.0-beta.6 Load webhook actions early.
  * @since 1.0.0-beta.8 Load webhook actions a little bit later, to avoid PHP warnings on first plugin activation.
  * @since 1.0.0-beta.9 Added memberships controller.
+ * @since [version] Added quizzes controller.
  */
 final class LifterLMS_REST_API {
 
@@ -116,6 +117,7 @@ final class LifterLMS_REST_API {
 	 *
 	 * @since 1.0.0-beta.1
 	 * @since 1.0.0-beta.9 Include memberships controller class file.
+	 * @since [version] Includes quizzes controller class file.
 	 *
 	 * @return void
 	 */
@@ -138,6 +140,7 @@ final class LifterLMS_REST_API {
 			'server/class-llms-rest-sections-controller',
 			'server/class-llms-rest-lessons-controller',
 			'server/class-llms-rest-memberships-controller',
+			'server/class-llms-rest-quizzes-controller',
 			'server/class-llms-rest-enrollments-controller',
 			'server/class-llms-rest-instructors-controller',
 			'server/class-llms-rest-students-controller',
@@ -156,6 +159,7 @@ final class LifterLMS_REST_API {
 	 *
 	 * @since 1.0.0-beta.1
 	 * @since 1.0.0-beta.9 Init memberships controller.
+	 * @since [version] Init quizzes controller.
 	 *
 	 * @return void
 	 */
@@ -167,6 +171,7 @@ final class LifterLMS_REST_API {
 			'LLMS_REST_Sections_Controller',
 			'LLMS_REST_Lessons_Controller',
 			'LLMS_REST_Memberships_Controller',
+			'LLMS_REST_Quizzes_Controller',
 			'LLMS_REST_Instructors_Controller',
 			'LLMS_REST_Students_Controller',
 			'LLMS_REST_Students_Progress_Controller',

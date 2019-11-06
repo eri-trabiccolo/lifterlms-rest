@@ -30,6 +30,7 @@ defined( 'ABSPATH' ) || exit;
  *                     In `get_objects_from_query()` avoid performing an additional query, just return the already retrieved posts.
  *                     Removed `"llms_rest_{$this->post_type}_filters_removed_for_reponse"` filter hooks,
  *                     `"llms_rest_{$this->post_type}_filters_removed_for_response"` added.
+ * @since [version] When preparing args for collection query, added `status` => `post_status` parameter mapping.
  */
 abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 
@@ -349,6 +350,7 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 	 * Format query arguments to retrieve a collection of objects.
 	 *
 	 * @since 1.0.0-beta.7
+	 * @since [version] Added `status` => `post_status` parameter mapping.
 	 *
 	 * @param  WP_REST_Request $request Full details about the request.
 	 * @return array
@@ -371,6 +373,7 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 			'page'    => 'paged',
 			'exclude' => 'post__not_in',
 			'include' => 'post__in',
+			'status'  => 'post_status',
 		);
 
 		/*

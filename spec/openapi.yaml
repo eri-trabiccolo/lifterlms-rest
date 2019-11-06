@@ -350,12 +350,11 @@ x-tagGroups:
     tags:
       - Memberships
 
-  # @todo: Implment.
-  # - name: Quizzes
-  #   tags:
-  #     - Quizzes
-  #     - Quiz Questions
-  #     - Quiz Attempts
+  - name: Quizzes
+    tags:
+      - Quizzes
+      - Quiz Questions
+      - Quiz Attempts
 
   - name: Students
     tags:
