@@ -8,7 +8,9 @@
  * @group rest_lessons
  *
  * @since 1.0.0-beta.7
- * @version 1.0.0-beta.7
+ * @since [version] Properly handle `audio_embed` and `video_embed` properties thar are now composed of sub-properties.
+ *                      Add tests on properties restriction.
+ * @version [version]
  */
 class LLMS_REST_Test_Lessons extends LLMS_REST_Unit_Test_Case_Posts {
 
@@ -500,7 +502,14 @@ class LLMS_REST_Test_Lessons extends LLMS_REST_Unit_Test_Case_Posts {
 			)
 		);
 		$lesson = $course->get_lessons()[0];
-		$res    = $this->perform_mock_request( 'GET', sprintf( '%1$s/%2$d', $this->route, $lesson->get( 'id' ) ) );
+		$res    = $this->perform_mock_request(
+			'GET',
+			sprintf(
+				'%1$s/%2$d',
+				$this->route,
+				$lesson->get( 'id' )
+			)
+		);
 
 		$this->assertResponseStatusEquals( 200, $res );
 		$res_data = $res->get_data();
@@ -557,6 +566,275 @@ class LLMS_REST_Test_Lessons extends LLMS_REST_Unit_Test_Case_Posts {
 		$res = $this->perform_mock_request( 'GET', sprintf( '%1$s/%2$d', $this->route, $course->get_lessons( 'ids' )[0] ) );
 		$this->assertResponseStatusEquals( 403, $res );
 		$this->assertResponseCodeEquals( 'llms_rest_forbidden_request', $res );
+
+	}
+
+	/**
+	 * Test getting a single restricted lesson.
+	 * @group guesswho
+	 * @since [version]
+	 */
+	public function test_get_restricted_item() {
+
+		wp_set_current_user( $this->user_allowed );
+
+		// Setup course.
+		$course = $this->factory->course->create_and_get(
+			array(
+				'sections' => 1,
+				'lessons'  => 2,
+				'quiz'     => 0,
+			)
+		);
+
+		$lessons    = $course->get_lessons();
+		$lesson     = reset($lessons);
+
+		// Case 1: restricted by enrollment
+
+		// course's enrollment restriction message.
+		$course->set( 'content_restricted_message', 'Not enrolled' );
+
+		$lesson->set_bulk(
+			array(
+				// set lessons' audio and video.
+				'audio_embed' => 'https://expected-audio.com/oEmbed',
+				'video_embed' => 'https://expected-video.com/oEmbed',
+				// set a content.
+				'content'     => 'A content',
+				'excerpt'     => 'An excerpt'
+			)
+		);
+
+
+		$response = $this->perform_mock_request(
+			'GET',
+			$this->route . '/' . $lesson->get( 'id' )
+		);
+
+		$res_data = $response->get_data();
+
+		// I'm an user who is not enrolled (although I am an admin, but the view manager doesn't know about this),
+		// so I expect content, excerpt, audio and video embeds restricted,
+		// Also content and excerpt should should show the course content restricted message.
+		$this->assertEquals( 'Not enrolled', $res_data['content']['rendered'] );
+		$this->assertTrue( $res_data['content']['restricted'] );
+		$this->assertEquals( 'Not enrolled', $res_data['excerpt']['rendered'] );
+		$this->assertTrue( $res_data['excerpt']['restricted'] );
+		$this->assertEquals( '', $res_data['audio_embed']['rendered'] );
+		$this->assertTrue( $res_data['audio_embed']['restricted'] );
+		$this->assertEquals( '', $res_data['video_embed']['rendered'] );
+		$this->assertTrue( $res_data['video_embed']['restricted'] );
+
+		// enroll the user.
+		llms_enroll_student( $this->user_allowed, $course->get( 'id' ) );
+
+		// Case 2: restricted by course time period - course not started yet.
+		$course->set_bulk(
+			array(
+				'course_opens_message' => 'Course opens soon',
+				// course opens tomorrow
+				'start_date'           => date( "Y-m-d", strtotime( 'tomorrow' ) ),
+				'time_period'          => 'yes',
+			)
+		);
+
+		$response = $this->perform_mock_request(
+			'GET',
+			$this->route . '/' . $lesson->get( 'id' )
+		);
+		$res_data = $response->get_data();
+
+		// I expect content, excerpt, audio and video embeds restricted.
+		// Also content and excerpt should should show the course opens message.
+		$this->assertEquals( apply_filters( 'the_content', 'Course opens soon' ), $res_data['content']['rendered'] );
+		$this->assertTrue( $res_data['content']['restricted'] );
+		$this->assertEquals( apply_filters( 'the_content', 'Course opens soon' ), $res_data['excerpt']['rendered'] );
+		$this->assertTrue( $res_data['excerpt']['restricted'] );
+		$this->assertEquals( '', $res_data['audio_embed']['rendered'] );
+		$this->assertTrue( $res_data['audio_embed']['restricted'] );
+		$this->assertEquals( '', $res_data['video_embed']['rendered'] );
+		$this->assertTrue( $res_data['video_embed']['restricted'] );
+
+		// Case 3: restricted by course time period - course already ended.
+		$course->set_bulk(
+			array(
+				'course_closed_message' => 'Course closed',
+				// course ended yesterday.
+				'start_date'           => date( "Y-m-d", strtotime( 'yesterday' ) ),
+				'end_date'             => date( "Y-m-d", strtotime( 'yesterday' ) ),
+			)
+		);
+
+		$response = $this->perform_mock_request(
+			'GET',
+			$this->route . '/' . $lesson->get( 'id' )
+		);
+		$res_data = $response->get_data();
+
+		// I expect content, excerpt, audio and video embeds restricted.
+		// Also content and excerpt should should show the course_opens_message.
+		$this->assertEquals( apply_filters( 'the_content', 'Course closed' ), $res_data['content']['rendered'] );
+		$this->assertTrue( $res_data['content']['restricted'] );
+		$this->assertEquals( apply_filters( 'the_content', 'Course closed' ), $res_data['excerpt']['rendered'] );
+		$this->assertTrue( $res_data['excerpt']['restricted'] );
+		$this->assertEquals( '', $res_data['audio_embed']['rendered'] );
+		$this->assertTrue( $res_data['audio_embed']['restricted'] );
+		$this->assertEquals( '', $res_data['video_embed']['rendered'] );
+		$this->assertTrue( $res_data['video_embed']['restricted'] );
+
+		// Case 4: restricted by course prerequisite.
+		$prereq_id = $this->factory->course->create(
+			array(
+				'sections' => 0,
+				'lessons'  => 0,
+				'quiz'     => 0,
+			)
+		);
+
+		$restriction_message = sprintf(
+			'The lesson "%1$s" cannot be accessed until the required prerequisite course "%2$s" is completed.',
+			$lesson->get( 'title' ),
+			'<a href="' . get_permalink( $prereq_id ) . '">' . get_the_title( $prereq_id ) . '</a>'
+		);
+
+		$course->set_bulk(
+			array(
+				// reset course time period restrictions.
+				'time_period'      => 'no',
+				// set a course prerequisite.
+				'prerequisite'     => $prereq_id,
+				'has_prerequisite' => 'yes',
+			)
+		);
+
+		$response = $this->perform_mock_request(
+			'GET',
+			$this->route . '/' . $lesson->get( 'id' )
+		);
+		$res_data = $response->get_data();
+
+		// I expect content, excerpt, audio and video embeds restricted.
+		// Also content and excerpt should should show the restriction message.
+		$this->assertEquals( $restriction_message, $res_data['content']['rendered'] );
+		$this->assertTrue( $res_data['content']['restricted'] );
+		$this->assertEquals( $restriction_message,  $res_data['excerpt']['rendered'] );
+		$this->assertTrue( $res_data['excerpt']['restricted'] );
+		$this->assertEquals( '', $res_data['audio_embed']['rendered'] );
+		$this->assertTrue( $res_data['audio_embed']['restricted'] );
+		$this->assertEquals( '', $res_data['video_embed']['rendered'] );
+		$this->assertTrue( $res_data['video_embed']['restricted'] );
+
+		// Case 5: restricted by track prerequisite.
+		$prereq_track_id = $this->factory()->term->create(
+			array(
+				'taxonomy' => 'course_track',
+			)
+		);
+		$track        = new LLMS_Track( $prereq_track_id );
+		$prereqt_link = '<a href="' . $track->get_permalink() . '">' . $track->term->name . '</a>';
+
+		$restriction_message = sprintf(
+			'The lesson "%1$s" cannot be accessed until the required prerequisite track "%2$s" is completed.',
+			$lesson->get( 'title' ),
+			$prereqt_link
+		);
+
+		$course->set_bulk(
+			array(
+				// set a course track prerequisite.
+				'prerequisite'       => '',
+				'prerequisite_track' => $prereq_track_id,
+			)
+		);
+
+		$response = $this->perform_mock_request(
+			'GET',
+			$this->route . '/' . $lesson->get( 'id' )
+		);
+		$res_data = $response->get_data();
+
+		// I expect content, excerpt, audio and video embeds restricted.
+		// Also content and excerpt should should show the restriction message.
+		$this->assertEquals( $restriction_message, $res_data['content']['rendered'] );
+		$this->assertTrue( $res_data['content']['restricted'] );
+		$this->assertEquals( $restriction_message,  $res_data['excerpt']['rendered'] );
+		$this->assertTrue( $res_data['excerpt']['restricted'] );
+		$this->assertEquals( '', $res_data['audio_embed']['rendered'] );
+		$this->assertTrue( $res_data['audio_embed']['restricted'] );
+		$this->assertEquals( '', $res_data['video_embed']['rendered'] );
+		$this->assertTrue( $res_data['video_embed']['restricted'] );
+
+		// Case 6: restricted by lesson prerequisite.
+
+		// reset course prerequisite.
+		$course->set( 'has_prerequisite', 'no' );
+		$prereq_id = end( $lessons )->get( 'id' );
+
+		// set lesson prerequisite.
+		$lesson->set_bulk(
+			array(
+				'has_prerequisite' => 'yes',
+				'prerequisite'     => $prereq_id,
+			)
+		);
+
+		$restriction_message = sprintf(
+			'The lesson "%1$s" cannot be accessed until the required prerequisite "%2$s" is completed.',
+			$lesson->get( 'title' ),
+			'<a href="' . get_permalink( $prereq_id ) . '">' . get_the_title( $prereq_id ) . '</a>'
+		);
+
+		$response = $this->perform_mock_request(
+			'GET',
+			$this->route . '/' . $lesson->get( 'id' )
+		);
+		$res_data = $response->get_data();
+
+		// I expect content, excerpt, audio and video embeds restricted.
+		// Also content and excerpt should should show the restriction message.
+		$this->assertEquals( $restriction_message, $res_data['content']['rendered'] );
+		$this->assertTrue( $res_data['content']['restricted'] );
+		$this->assertEquals( $restriction_message,  $res_data['excerpt']['rendered'] );
+		$this->assertTrue( $res_data['excerpt']['restricted'] );
+		$this->assertEquals( '', $res_data['audio_embed']['rendered'] );
+		$this->assertTrue( $res_data['audio_embed']['restricted'] );
+		$this->assertEquals( '', $res_data['video_embed']['rendered'] );
+		$this->assertTrue( $res_data['video_embed']['restricted'] );
+
+		// Case 7: restricted by lesson drip.
+		$lesson->set_bulk(
+			array(
+				// reset prerequisite.
+				'has_prerequisite' => 'no',
+				// set drip method 1 year from now.
+				'drip_method'      => 'date',
+				'date_available'   => date_i18n( 'Y-m-d', strtotime( '+1 year' ) ),
+			)
+		);
+
+		$restriction_message = sprintf(
+			'The lesson "%1$s" will be available on %2$s',
+			$lesson->get( 'title' ),
+			$lesson->get_available_date()
+		);
+
+		$response = $this->perform_mock_request(
+			'GET',
+			$this->route . '/' . $lesson->get( 'id' )
+		);
+		$res_data = $response->get_data();
+
+		// I expect content, excerpt, audio and video embeds restricted.
+		// Also content and excerpt should should show the restriction message.
+		$this->assertEquals( $restriction_message, $res_data['content']['rendered'] );
+		$this->assertTrue( $res_data['content']['restricted'] );
+		$this->assertEquals( $restriction_message,  $res_data['excerpt']['rendered'] );
+		$this->assertTrue( $res_data['excerpt']['restricted'] );
+		$this->assertEquals( '', $res_data['audio_embed']['rendered'] );
+		$this->assertTrue( $res_data['audio_embed']['restricted'] );
+		$this->assertEquals( '', $res_data['video_embed']['rendered'] );
+		$this->assertTrue( $res_data['video_embed']['restricted'] );
 
 	}
 
@@ -645,6 +923,7 @@ class LLMS_REST_Test_Lessons extends LLMS_REST_Unit_Test_Case_Posts {
 	 * Override.
 	 *
 	 * @since 1.0.0-beta.7
+	 * @since [version] Properly handle `audio_embed` and `video_embed` properties thar are now composed of sub-properties.
 	 *
 	 * @param $expected array Array of expected properties.
 	 * @param $lesson LLMS_Post Instance of LLMS_Post.
@@ -653,10 +932,10 @@ class LLMS_REST_Test_Lessons extends LLMS_REST_Unit_Test_Case_Posts {
 	protected function filter_expected_fields( $expected, $lesson ) {
 
 		// Audio Embed.
-		$expected['audio_embed'] = $lesson->get( 'audio_embed' );
+		$expected['audio_embed']['rendered'] = $lesson->get( 'audio_embed' );
 
 		// Video Embed.
-		$expected['video_embed'] = $lesson->get( 'video_embed' );
+		$expected['video_embed']['rendered'] = $lesson->get( 'video_embed' );
 
 		// Parent section.
 		$expected['parent_id'] = $lesson->get_parent_section();

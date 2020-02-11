@@ -28,6 +28,7 @@ defined( 'ABSPATH' ) || exit;
  *                     so to instruct it to return a WP_Error on failure.
  * @since 1.0.0-beta.9 Removed `create_llms_post()` and `get_object()` methods, now abstracted in `LLMS_REST_Posts_Controller` class.
  *                     `llms_rest_lesson_filters_removed_for_response` filter hook added.
+ * @since [version] Properly define and handle `audio_embed` and `video_embed` properties thar are now composed of sub-properties.
  */
 class LLMS_REST_Lessons_Controller extends LLMS_REST_Posts_Controller {
 
@@ -103,6 +104,7 @@ class LLMS_REST_Lessons_Controller extends LLMS_REST_Posts_Controller {
 	 * Prepares a single lesson for create or update.
 	 *
 	 * @since 1.0.0-beta.7
+	 * @since [version] Properly handle `audio_embed` and `video_embed` properties thar are now composed of sub-properties.
 	 *
 	 * @param WP_REST_Request $request Request object.
 	 * @return array|WP_Error Array of lesson args or WP_Error.
@@ -114,12 +116,20 @@ class LLMS_REST_Lessons_Controller extends LLMS_REST_Posts_Controller {
 
 		// Lesson's audio embed URL.
 		if ( ! empty( $schema['properties']['audio_embed'] ) && isset( $request['audio_embed'] ) ) {
-			$prepared_item['audio_embed'] = $request['audio_embed'];
+			if ( is_string( $request['audio_embed'] ) ) {
+				$prepared_item['audio_embed'] = esc_url_raw( $request['audio_embed'] );
+			} elseif ( isset( $request['audio_embed']['raw'] ) ) {
+				$prepared_item['audio_embed'] = esc_url_raw( $request['audio_embed']['raw'] );
+			}
 		}
 
 		// Lesson's video embed URL.
 		if ( ! empty( $schema['properties']['video_embed'] ) && isset( $request['video_embed'] ) ) {
-			$prepared_item['video_embed'] = $request['video_embed'];
+			if ( is_string( $request['video_embed'] ) ) {
+				$prepared_item['video_embed'] = esc_url_raw( $request['video_embed'] );
+			} elseif ( isset( $request['video_embed']['raw'] ) ) {
+				$prepared_item['video_embed'] = esc_url_raw( $request['video_embed']['raw'] );
+			}
 		}
 
 		// Parent (section) id.
@@ -288,6 +298,7 @@ class LLMS_REST_Lessons_Controller extends LLMS_REST_Posts_Controller {
 	 * @since 1.0.0-beta.1
 	 * @since 1.0.0-beta.7 Added the following properties: drip_date, drip_days, drip_method, public, quiz.
 	 *                  Added `llms_rest_lesson_item_schema` filter hook.
+	 * @since [version] `audio_embed` and `video_embed` properties are now composed of sub-properties: `raw`, `rendered`, `restricted`.
 	 *
 	 * @return array Item schema data.
 	 */
@@ -339,22 +350,65 @@ class LLMS_REST_Lessons_Controller extends LLMS_REST_Posts_Controller {
 					'sanitize_callback' => 'absint',
 				),
 			),
-			'audio_embed'  => array(
+			'audio_embed'               => array(
 				'description' => __( 'URL to an oEmbed enable audio URL.', 'lifterlms' ),
-				'type'        => 'string',
+				'type'        => 'object',
 				'context'     => array( 'view', 'edit' ),
-				'format'      => 'uri',
 				'arg_options' => array(
-					'sanitize_callback' => 'esc_url_raw',
+					'sanitize_callback' => null, // Note: sanitization implemented in self::prepare_item_for_database().
+					'validate_callback' => null, // Note: validation implemented in self::prepare_item_for_database().
+				),
+				'properties'  => array(
+					'raw'      => array(
+						'description' => __( 'Raw URL.', 'lifterlms' ),
+						'type'        => 'string',
+						'context'     => array( 'edit' ),
+						'format'      => 'uri',
+					),
+					'rendered' => array(
+						'description' => __( 'Rendered URL.', 'lifterlms' ),
+						'type'        => 'string',
+						'context'     => array( 'view', 'edit' ),
+						'format'      => 'uri',
+						'readonly'    => true,
+					),
+					'restricted' => array(
+						'description' => __( 'Whether the audio embed URL is restricted to the current user.', 'lifterlms' ),
+						'type'        => 'boolean',
+						'context'     => array( 'view', 'edit' ),
+						'readonly'    => true,
+					),
 				),
 			),
-			'video_embed'  => array(
+			'video_embed'               => array(
 				'description' => __( 'URL to an oEmbed enable video URL.', 'lifterlms' ),
-				'type'        => 'string',
+				'type'        => 'object',
 				'context'     => array( 'view', 'edit' ),
 				'format'      => 'uri',
 				'arg_options' => array(
-					'sanitize_callback' => 'esc_url_raw',
+					'sanitize_callback' => null, // Note: sanitization implemented in self::prepare_item_for_database().
+					'validate_callback' => null, // Note: validation implemented in self::prepare_item_for_database().
+				),
+				'properties'  => array(
+					'raw'      => array(
+						'description' => __( 'Raw URL.', 'lifterlms' ),
+						'type'        => 'string',
+						'context'     => array( 'edit' ),
+						'format'      => 'uri',
+					),
+					'rendered' => array(
+						'description' => __( 'Rendered URL.', 'lifterlms' ),
+						'type'        => 'string',
+						'context'     => array( 'view', 'edit' ),
+						'format'      => 'uri',
+						'readonly'    => true,
+					),
+					'restricted' => array(
+						'description' => __( 'Whether the video embed URL is restricted to the current user.', 'lifterlms' ),
+						'type'        => 'boolean',
+						'context'     => array( 'view', 'edit' ),
+						'readonly'    => true,
+					),
 				),
 			),
 			'drip_date'    => array(
@@ -503,6 +557,7 @@ class LLMS_REST_Lessons_Controller extends LLMS_REST_Posts_Controller {
 	 * @since 1.0.0-beta.7 Added following properties to the response object:
 	 *                  public, points, quiz, drip_method, drip_days, drip_date, prerequisite, audio_embed, video_embed.
 	 *                  Added `llms_rest_prepare_lesson_object_response` filter hook.
+	 * @since [version] `audio_embed` and `video_embed` properties are now composed of sub-properties that need to be properly set.
 	 *
 	 * @param LLMS_Lesson     $lesson Lesson object.
 	 * @param WP_REST_Request $request Full details about the request.
@@ -513,10 +568,14 @@ class LLMS_REST_Lessons_Controller extends LLMS_REST_Posts_Controller {
 		$data = parent::prepare_object_for_response( $lesson, $request );
 
 		// Audio Embed.
-		$data['audio_embed'] = $lesson->get( 'audio_embed' );
+		$data['audio_embed']['raw']        = $lesson->get( 'audio_embed' );
+		$data['audio_embed']['rendered']   = $data['audio_embed']['raw'];
+		$data['audio_embed']['restricted'] = false; // default.
 
 		// Video Embed.
-		$data['video_embed'] = $lesson->get( 'video_embed' );
+		$data['video_embed']['raw']        = $lesson->get( 'video_embed' );
+		$data['video_embed']['rendered']   = $data['video_embed']['raw'];
+		$data['video_embed']['restricted'] = false; // default.
 
 		// Parent section.
 		$data['parent_id'] = $lesson->get_parent_section();

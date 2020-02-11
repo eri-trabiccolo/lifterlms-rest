@@ -5,7 +5,7 @@
  * @package LifterLMS_REST/Abstracts
  *
  * @since 1.0.0-beta.1
- * @version 1.0.0-beta.9
+ * @version [version]
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -23,13 +23,14 @@ defined( 'ABSPATH' ) || exit;
  *                     Fix wp:featured_media link, we don't expose any embeddable field.
  *                     Also `self` and `collection` links prepared in the parent class.
  *                     Added `"llms_rest_insert_{$this->post_type}"` and `"llms_rest_insert_{$this->post_type}"` action hooks:
- *                     fired after inserting/updateing an llms post into the database.
+ *                     fired after inserting/updating an llms post into the database.
  * @since 1.0.0-beta.8 Return links to those taxonomies which have an accessible rest route.
  *                     Initialize `$prepared_item` array before adding values to it.
  * @since 1.0.0-beta.9 Implemented a generic way to create and get an llms post object instance given a `post_type`.
  *                     In `get_objects_from_query()` avoid performing an additional query, just return the already retrieved posts.
  *                     Removed `"llms_rest_{$this->post_type}_filters_removed_for_reponse"` filter hooks,
  *                     `"llms_rest_{$this->post_type}_filters_removed_for_response"` added.
+ * @since [version] When preparing a resource for response, prepare WP_Query for restrictions checks and handle post restrictions.
  */
 abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 
@@ -67,6 +68,15 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 	 * @var string;
 	 */
 	protected $llms_post_class;
+
+	/**
+	 * Schema properties that must be restricted when the post is restricted.
+	 *
+	 * @since [version]
+	 *
+	 * @var string[]
+	 */
+	protected $restrictable_properties;
 
 	/**
 	 * Retrieves an array of arguments for the delete endpoint.
@@ -146,9 +156,9 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 	 *
 	 * @since 1.0.0-beta.7
 	 *
-	 * @param obj             $query Objects query result.
+	 * @param obj             $query    Objects query result.
 	 * @param array           $prepared Array of collection arguments.
-	 * @param WP_REST_Request $request Request object.
+	 * @param WP_REST_Request $request  Request object.
 	 * @return array {
 	 *     Array of pagination information.
 	 *
@@ -205,7 +215,7 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 	 *
 	 * @since 1.0.0-beta.1
 	 * @since 1.0.0-beta.7 Added `"llms_rest_insert_{$this->post_type}"` and `"llms_rest_insert_{$this->post_type}"` action hooks:
-	 *                  fired after inserting/uodateing an llms post into the database.
+	 *                     fired after inserting/updating an llms post into the database.
 	 *
 	 * @param WP_REST_Request $request Full details about the request.
 	 * @return WP_REST_Response|WP_Error Response object on success, or WP_Error object on failure.
@@ -312,7 +322,7 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 	 *
 	 * @since 1.0.0-beta.1
 	 *
-	 * @param  WP_REST_Request $request Full details about the request.
+	 * @param WP_REST_Request $request Full details about the request.
 	 * @return WP_Error|boolean
 	 */
 	public function get_item_permissions_check( $request ) {
@@ -350,7 +360,7 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 	 *
 	 * @since 1.0.0-beta.7
 	 *
-	 * @param  WP_REST_Request $request Full details about the request.
+	 * @param WP_REST_Request $request Full details about the request.
 	 * @return array
 	 */
 	protected function prepare_collection_query_args( $request ) {
@@ -402,7 +412,7 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 	 *
 	 * @since 1.0.0-beta.1
 	 *
-	 * @param  WP_REST_Request $request Full details about the request.
+	 * @param WP_REST_Request $request Full details about the request.
 	 * @return WP_Error|boolean
 	 */
 	public function update_item_permissions_check( $request ) {
@@ -434,9 +444,9 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 	 *
 	 * @since 1.0.0-beta.1
 	 * @since 1.0.0-beta.7 Don't execute `$object->set_bulk()` when there's no data to update:
-	 *                    this fixes an issue when updating only properties which are not handled in `prepare_item_for_database()`.
-	 *                  Added `"llms_rest_insert_{$this->post_type}"` and `"llms_rest_insert_{$this->post_type}"` action hooks:
-	 *                    fired after inserting/uodateing an llms post into the database.
+	 *                     this fixes an issue when updating only properties which are not handled in `prepare_item_for_database()`.
+	 *                     Added `"llms_rest_insert_{$this->post_type}"` and `"llms_rest_insert_{$this->post_type}"` action hooks:
+	 *                     fired after inserting/updating an llms post into the database.
 	 *
 	 * @param WP_REST_Request $request Full details about the request.
 	 * @return WP_REST_Response|WP_Error Response object on success, or WP_Error object on failure.
@@ -545,7 +555,7 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 	 *
 	 * @since 1.0.0-beta.1
 	 *
-	 * @param  WP_REST_Request $request Full details about the request.
+	 * @param WP_REST_Request $request Full details about the request.
 	 * @return bool|WP_Error
 	 */
 	public function delete_item_permissions_check( $request ) {
@@ -729,6 +739,7 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 	 * Prepare a single object output for response.
 	 *
 	 * @since 1.0.0-beta.1
+	 * @since [version] Added `restricted` sub-property for the `content` and the `excerpt` properties.
 	 *
 	 * @param LLMS_Post_Model $object  object object.
 	 * @param WP_REST_Request $request Full details about the request.
@@ -760,14 +771,16 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 			'comment_status'   => $object->get( 'comment_status' ),
 			'ping_status'      => $object->get( 'ping_status' ),
 			'content'          => array(
-				'raw'       => $object->get( 'content', true ),
-				'rendered'  => $password_required ? '' : apply_filters( 'the_content', $object->get( 'content', true ) ),
-				'protected' => (bool) $password,
+				'raw'        => $object->get( 'content', true ),
+				'rendered'   => $password_required ? '' : apply_filters( 'the_content', $object->get( 'content', true ) ),
+				'protected'  => (bool) $password,
+				'restricted' => false,
 			),
 			'excerpt'          => array(
-				'raw'       => $object->get( 'excerpt', true ),
-				'rendered'  => $password_required ? '' : apply_filters( 'the_excerpt', $object->get( 'excerpt' ) ),
-				'protected' => (bool) $password,
+				'raw'        => $object->get( 'excerpt', true ),
+				'rendered'   => $password_required ? '' : apply_filters( 'the_excerpt', $object->get( 'excerpt' ) ),
+				'protected'  => (bool) $password,
+				'restricted' => false,
 			),
 		);
 
@@ -779,6 +792,7 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 	 * Prepare a single item for the REST response
 	 *
 	 * @since 1.0.0-beta.1
+	 * @since [version] WP_Query prepared for restrictions checks, add restrictions handling.
 	 *
 	 * @param LLMS_Post_Model $object  LLMS post object.
 	 * @param WP_REST_Request $request Request object.
@@ -789,10 +803,15 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 		$context = ! empty( $request['context'] ) ? $request['context'] : 'view';
 
 		// Need to set the global $post because of references to the global $post when e.g. filtering the content, or processing blocks/shortcodes.
-		global $post;
-		$temp = $post;
-		$post = $object->get( 'post' ); // phpcs:ignore
+		global $post, $wp_query;
+		$temp       = $post;
+		$post       = $object->get( 'post' ); // phpcs:ignore
+		$temp_query = $wp_query;
 		setup_postdata( $post );
+
+		$wp_query->is_singular       = true;
+		$wp_query->queried_object    = $post;
+		$wp_query->queried_object_id = $post->ID;
 
 		$removed_filters_for_response = $this->maybe_remove_filters_for_response( $object );
 
@@ -806,20 +825,26 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 
 		$data = $this->prepare_object_for_response( $object, $request );
 
+		// Filter data including only schema props.
+		$data = array_intersect_key( $data, array_flip( $this->get_fields_for_response( $request ) ) );
+
+		// Filter data by context. E.g. in "view" mode the password property won't be allowed.
+		$data = $this->filter_response_by_context( $data, $context );
+
+		// Maybe apply restrictions to some properties.
+		$data = $this->maybe_restrict_object_data( $data, $object );
+
 		if ( $has_password_filter ) {
 			// Reset filter.
 			remove_filter( 'post_password_required', '__return_false' );
 		}
 
 		$this->maybe_add_removed_filters_for_response( $removed_filters_for_response );
-		$post = $temp; // phpcs:ignore
+
+		// Reset post and query.
+		$post     = $temp; // phpcs:ignore
+		$wp_query = $temp_query; // phpcs:ignore
 		wp_reset_postdata();
-
-		// Filter data including only schema props.
-		$data = array_intersect_key( $data, array_flip( $this->get_fields_for_response( $request ) ) );
-
-		// Filter data by context. E.g. in "view" mode the password property won't be allowed.
-		$data = $this->filter_response_by_context( $data, $context );
 
 		// Wrap the data in a response object.
 		$response = rest_ensure_response( $data );
@@ -1002,6 +1027,7 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 	 * Get the LLMS Posts's schema, conforming to JSON Schema.
 	 *
 	 * @since 1.0.0-beta.1
+	 * @since [version] Added `restricted` sub-property for the `content` and the `excerpt` properties.
 	 *
 	 * @return array
 	 */
@@ -1082,19 +1108,25 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 					),
 					'required'    => true,
 					'properties'  => array(
-						'rendered'  => array(
+						'rendered'   => array(
 							'description' => __( 'Rendered HTML content.', 'lifterlms' ),
 							'type'        => 'string',
 							'context'     => array( 'view', 'edit' ),
 							'readonly'    => true,
 						),
-						'raw'       => array(
+						'raw'        => array(
 							'description' => __( 'Raw HTML content. Useful when displaying title in the WP Block Editor. Only returned in edit context.', 'lifterlms' ),
 							'type'        => 'string',
 							'context'     => array( 'edit' ),
 						),
-						'protected' => array(
+						'protected'  => array(
 							'description' => __( 'Whether the content is protected with a password.', 'lifterlms' ),
+							'type'        => 'boolean',
+							'context'     => array( 'view', 'edit' ),
+							'readonly'    => true,
+						),
+						'restricted' => array(
+							'description' => __( 'Whether the shown content is restricted to the current user.', 'lifterlms' ),
 							'type'        => 'boolean',
 							'context'     => array( 'view', 'edit' ),
 							'readonly'    => true,
@@ -1110,19 +1142,25 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 						'validate_callback' => null, // Note: validation implemented in self::prepare_item_for_database().
 					),
 					'properties'  => array(
-						'rendered'  => array(
+						'rendered'   => array(
 							'description' => __( 'Rendered HTML excerpt.', 'lifterlms' ),
 							'type'        => 'string',
 							'context'     => array( 'view', 'edit' ),
 							'readonly'    => true,
 						),
-						'raw'       => array(
+						'raw'        => array(
 							'description' => __( 'Raw HTML excerpt. Useful when displaying title in the WP Block Editor. Only returned in edit context.', 'lifterlms' ),
 							'type'        => 'string',
 							'context'     => array( 'edit' ),
 						),
-						'protected' => array(
+						'protected'  => array(
 							'description' => __( 'Whether the excerpt is protected with a password.', 'lifterlms' ),
+							'type'        => 'boolean',
+							'context'     => array( 'view', 'edit' ),
+							'readonly'    => true,
+						),
+						'restricted' => array(
+							'description' => __( 'Whether the shown excerpt is restricted to the current user.', 'lifterlms' ),
 							'type'        => 'boolean',
 							'context'     => array( 'view', 'edit' ),
 							'readonly'    => true,
@@ -1389,6 +1427,413 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 		 */
 		return apply_filters( "llms_rest_{$this->post_type}_filters_removed_for_response", array(), $object );
 
+	}
+
+	/**
+	 * Maybe apply restrictions on object's data properties.
+	 *
+	 * @since [version]
+	 *
+	 * @param array           $data   Array of object data.
+	 * @param LLMS_Post_Model $object LLMS_Post_Model instance.
+	 * @return array Array of object data.
+	 */
+	protected function maybe_restrict_object_data( $data, $object ) {
+
+		$restrictable_properties = array_intersect( $this->get_restrictable_properties(), array_keys( $data ) );
+
+		if ( empty( $restrictable_properties ) ) {
+			return $data;
+		}
+
+		$restriction = $this->page_restricted( $object );
+
+		if ( empty( $restriction['is_restricted'] ) ) {
+			return $data;
+		}
+
+		$msg      = '';
+		$redirect = '';
+		$reasons  = $this->get_post_restriction_reasons();
+
+		// If the post type has a specific method to check the redirection and a redirection is active,
+		// empty the `content` and `excerpt` rendered properties and return tehe modified data.
+		if ( method_exists( $object, 'has_sales_page_redirect' ) && $object->has_sales_page_redirect() ) {
+
+			$redirect = true;
+
+		} elseif ( in_array( $restriction['reason'], $reasons, true ) ) {
+
+			$reason = $restriction['reason'];
+
+			if ( method_exists( $this, "handle_restriction_by_{$reason}" ) ) {
+				list( $msg, $redirect ) = $this->{"handle_restriction_by_{$reason}"}( $restriction );
+			}
+
+			/**
+			 * Filters the restriction message.
+			 * This filter is also present in lifterlms/includes/class.llms.template.loader.php
+			 *
+			 * The dynamic portion of the hook name, `$reason`, refers to the restriction reason.
+			 *
+			 * @since [version]
+			 *
+			 * @param string $message     Restriction message.
+			 * @param array  $restriction Array of restriction info from `llms_page_restricted()`.
+			 */
+			$msg = apply_filters( "llms_restricted_by_{$reason}_message", $msg, $restriction );
+
+			/**
+			 * Filters the restriction redirect url.
+			 * This filter is also present in lifterlms/includes/class.llms.template.loader.php
+			 *
+			 * The dynamic portion of the hook name, `$reason`, refers to the restriction reason.
+			 *
+			 * @since [version]
+			 *
+			 * @param string $redired     Restriction redirect url.
+			 * @param array  $restriction Array of restriction info from `llms_page_restricted()`.
+			 */
+			$redirect = apply_filters( "llms_restricted_by_{$reason}_redirect", $redirect, $restriction );
+
+		}
+
+		foreach ( $restrictable_properties as $restrictable ) {
+			$data[ $restrictable ]['restricted'] = true;
+
+			if ( isset( $data[ $restrictable ]['rendered'] ) ) {
+				$data[ $restrictable ]['rendered'] = $redirect ? '' : $data[ $restrictable ]['rendered'];
+				if ( $msg && in_array( $restrictable, array( 'content', 'excerpt' ), true ) ) {
+					$data[ $restrictable ]['rendered'] = $msg . $data[ $restrictable ]['rendered'];
+				}
+			}
+		}
+
+		return $data;
+	}
+
+	/**
+	 * Get schema properties that should be restricted when the post is restricted.
+	 *
+	 * @since [version]
+	 *
+	 * @return array Restriction check result data.
+	 */
+	protected function get_restrictable_properties() {
+
+		if ( isset( $this->restrictable_properties ) ) {
+			return $this->restrictable_properties;
+		}
+
+		$schema = $this->get_item_schema();
+
+		$restrictable_properties = array();
+
+		foreach ( $schema['properties'] as $property_name => $properties ) {
+			if ( 'object' === $properties['type'] && isset( $properties['properties']['restricted'] ) ) {
+				$restrictable_properties[] = $property_name;
+			}
+		}
+
+		$this->restrictable_properties = $restrictable_properties;
+
+		return $restrictable_properties;
+
+	}
+
+	/**
+	 * Determine if content should be restricted.
+	 *
+	 * @since [version]
+	 *
+	 * @param LLMS_Post_Model $object LLMS_Post_Model instance.
+	 * @return array Restriction check result data.
+	 */
+	protected function page_restricted( $object ) {
+		return llms_page_restricted( $object->get( 'id' ) );
+	}
+
+	/**
+	 * Get post restrictions reasons.
+	 *
+	 * @since [version]
+	 *
+	 * @todo This method could be turned into a function in core.
+	 *       So that both the rest-api code and lifterlms/includes/class.llms.template.loader.php
+	 *       can use it to determine the restriction reasons.
+	 *
+	 * @return array
+	 */
+	protected function get_post_restriction_reasons() {
+
+		$restriction_reasons = array(
+			'course_prerequisite',
+			'course_track_prerequisite',
+			'course_time_period',
+			'enrollment_lesson',
+			'lesson_drip',
+			'lesson_prerequisite',
+			'membership',
+			'sitewide_membership',
+			'quiz',
+		);
+
+		/* This filter is documented in lifterlms/includes/class.llms.template.loader.php */
+		return apply_filters( 'llms_restriction_reasons', $restriction_reasons );
+
+	}
+
+	/**
+	 * Handle content restricted to a membership.
+	 *
+	 * @since [version]
+	 *
+	 * @todo This is basically identical to the core method LLMS_Template_Loader::restricted_by_sitewide_membership().
+	 *
+	 * @param array $restriction Array of restriction info from `llms_page_restricted()`.
+	 * @return array An array of two elements: 1) restriction message, 2) redirect.
+	 */
+	protected function handle_restriction_by_sitewide_membership( $restriction ) {
+		return $this->handle_restriction_by_membership( $restriction );
+	}
+
+	/**
+	 * Handle content restricted to a membership.
+	 *
+	 * @since [version]
+	 *
+	 * @todo This is 99% identical to the core method LLMS_Template_Loader::restricted_by_membership().
+	 *       The difference here is that we don't fire any redirect nor we add any notice here.
+	 *       We only return the restriction message and the redirect url (if any).
+	 *
+	 * @param array $restriction Array of restriction info from `llms_page_restricted()`.
+	 * @return array An array of two elements: 1) restriction message, 2) redirect.
+	 */
+	protected function handle_restriction_by_membership( $restriction ) {
+
+		$msg           = '';
+		$redirect      = '';
+		$membership_id = $restriction['restriction_id'] ? $restriction['restriction_id'] : null;
+
+		// do nothing if we don't have a membership id.
+		if ( ! empty( $membership_id ) && is_numeric( $membership_id ) ) {
+
+			// instantiate the membership.
+			$membership = new LLMS_Membership( $membership_id );
+
+			// get the redirect based on the redirect type (if set).
+			switch ( $membership->get( 'restriction_redirect_type' ) ) {
+				case 'custom':
+					$redirect = $membership->get( 'redirect_custom_url' );
+					break;
+				case 'membership':
+					$redirect = get_permalink( $membership->get( 'id' ) );
+					break;
+				case 'page':
+					$redirect = get_permalink( $membership->get( 'redirect_page_id' ) );
+					break;
+			}
+
+			if ( 'yes' === $membership->get( 'restriction_add_notice' ) ) {
+				$msg = $membership->get( 'restriction_notice' );
+			}
+		}
+
+		return array( $msg, $redirect );
+
+	}
+
+	/**
+	 * Handle redirects and messages when a user attempts to access an item
+	 * restricted by a course track prerequisite.
+	 *
+	 * @since [version]
+	 *
+	 * @param array $restriction Array of restriction info from `llms_page_restricted()`.
+	 * @return array An array of two elements: 1) restriction message, 2) redirect.
+	 */
+	protected function handle_restriction_by_course_track_prerequisite( $restriction ) {
+
+		return $this->handle_restriction_by_course_prerequisite( $restriction );
+
+	}
+
+	/**
+	 * Handle redirects and messages when a user attempts to access an item
+	 * restricted by a course prerequisite.
+	 *
+	 * @since [version]
+	 *
+	 * @todo This is 99% identical to the core method LLMS_Template_Loader::restricted_by_course_prerequisite().
+	 *       The difference here is that we don't fire any redirect nor we add any notice here.
+	 *       We only return the restriction message and the redirect url (if any).
+	 *
+	 * @param array $restriction Array of restriction info from `llms_page_restricted()`.
+	 * @return array An array of two elements: 1) restriction message, 2) redirect.
+	 */
+	protected function handle_restriction_by_course_prerequisite( $restriction ) {
+
+		$msg      = '';
+		$redirect = '';
+
+		if ( 'course' !== get_post_type( $restriction['content_id'] ) ) {
+			$msg      = llms_get_restriction_message( $restriction );
+			$course   = llms_get_post_parent_course( $restriction['content_id'] );
+			$redirect = get_permalink( $course->get( 'id' ) );
+		}
+
+		return array( $msg, $redirect );
+
+	}
+
+	/**
+	 * Handle redirects and messages when a course or associated quiz or lesson has time period
+	 * date restrictions placed upon it.
+	 *
+	 * @since [version]
+	 *
+	 * @todo This is 99% identical to the core method LLMS_Template_Loader::restricted_by_course_time_period().
+	 *       The difference here is that we don't fire any redirect nor we add any notice here.
+	 *       We only return the restriction message and the redirect url (if any).
+	 *
+	 * @param array $restriction Array of restriction info from `llms_page_restricted()`.
+	 * @return array An array of two elements: 1) restriction message, 2) redirect.
+	 */
+	protected function handle_restriction_by_course_time_period( $restriction ) {
+
+		$msg      = '';
+		$redirect = '';
+
+		$post_type = get_post_type( $restriction['content_id'] );
+
+		// remove `llms_get_post_content` filter.
+		remove_filter( 'the_content', 'llms_get_post_content' );
+
+		// If this restriction occurs when attempting to view a lesson,
+		// in core we redirect the user to the course, and course restriction is handled
+		// by displaying the message once we get there.
+		// In this case we retrieve the course "time period" message here.
+		if ( 'lesson' === $post_type || 'llms_quiz' === $post_type ) {
+
+			$course_id = $restriction['restriction_id'];
+			$course    = llms_get_post( $course_id );
+			$msg       = '';
+
+			if ( $course ) {
+				if ( 'yes' === $course->get( 'time_period' ) ) {
+					// if the start date hasn't passed yet.
+					if ( ! $course->has_date_passed( 'start_date' ) ) {
+
+						$msg = apply_filters( 'the_content', $course->get( 'course_opens_message' ) );
+
+					} elseif ( $course->has_date_passed( 'end_date' ) ) {
+
+						$msg = apply_filters( 'the_content', $course->get( 'course_closed_message' ) );
+
+					}
+				}
+
+				$redirect = get_permalink( $course_id );
+			}
+		}
+
+		// re-add `llms_get_post_content` filter.
+		add_filter( 'the_content', 'llms_get_post_content' );
+
+		return array( $msg, $redirect );
+
+	}
+
+	/**
+	 * Handle redirects and messages when a user attempts to access a lesson
+	 * for that is restricted by lesson drip settings.
+	 *
+	 * @since [version]
+	 *
+	 * @todo This is 99% identical to the core method LLMS_Template_Loader::restricted_by_lesson_drip().
+	 *       The difference here is that we don't fire any redirect nor we add any notice here.
+	 *       We only return the restriction message and the redirect url (if any).
+	 *
+	 * @param array $restriction Array of restriction info from `llms_page_restricted()`.
+	 * @return array An array of two elements: 1) restriction message, 2) redirect.
+	 */
+	protected function handle_restriction_by_lesson_drip( $restriction ) {
+
+		$lesson   = new LLMS_Lesson( $restriction['restriction_id'] );
+		$msg      = llms_get_restriction_message( $restriction );
+		$redirect = get_permalink( $lesson->get_parent_course() );
+
+		return array( $msg, $redirect );
+
+	}
+
+	/**
+	 * Handle redirects and messages when a user attempts to access a lesson
+	 * for that is restricted by prerequisite lesson.
+	 *
+	 * @since [version]
+	 * @todo This is 99% identical to the core method LLMS_Template_Loader::restricted_by_lesson_prerequisite().
+	 *       The difference here is that we don't fire any redirect nor we add any notice here.
+	 *       We only return the restriction message and the redirect url (if any).
+	 *
+	 * @param array $restriction Array of restriction info from `llms_page_restricted()`.
+	 * @return array An array of two elements: 1) restriction message, 2) redirect.
+	 */
+	protected function handle_restriction_by_lesson_prerequisite( $restriction ) {
+
+		return $this->handle_restriction_by_enrollment_lesson( $restriction );
+
+	}
+
+	/**
+	 * Handle redirects and messages when a user attempts to access a lesson
+	 * for a course they're not enrolled in.
+	 *
+	 * @since [version]
+	 *
+	 * @todo This is 99% identical to the core method LLMS_Template_Loader::restricted_by_enrollment_lesson.
+	 *       The difference here is that we don't fire any redirect nor we add any notice here.
+	 *       We only return the restriction message and the redirect url (if any).
+	 *
+	 * @param array $restriction Array of restriction info from `llms_page_restricted()`.
+	 * @return array An array of two elements: 1) restriction message, 2) redirect.
+	 */
+	protected function handle_restriction_by_enrollment_lesson( $restriction ) {
+
+		$msg      = llms_get_restriction_message( $restriction );
+		$redirect = get_permalink( $restriction['restriction_id'] );
+
+		return array( $msg, $redirect );
+
+	}
+
+	/**
+	 * Handle attempts to access quizzes.
+	 *
+	 * @since [version]
+	 *
+	 * @param array $restriction Array of restriction info from `llms_page_restricted()`.
+	 * @return array An array of two elements: 1) restriction message, 2) redirect.
+	 */
+	protected function handle_restriction_by_quiz( $restriction ) {
+
+		if ( get_current_user_id() ) {
+			$msg      = __( 'You must be enrolled in the course to access this quiz.', 'lifterlms' );
+			$quiz     = llms_get_post( $restriction['restriction_id'] );
+			$redirect = '';
+
+			if ( $quiz ) {
+				$course = $quiz->get_course();
+				if ( $course ) {
+					$redirect = get_permalink( $course->get( 'id' ) );
+				}
+			}
+		} else {
+			$msg      = __( 'You must be logged in to take quizzes.', 'lifterlms' );
+			$redirect = llms_person_my_courses_url();
+		}
+
+		return array( $msg, $redirect );
 	}
 
 	/**

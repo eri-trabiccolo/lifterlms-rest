@@ -8,7 +8,7 @@
  * @group rest_memberships
  *
  * @since 1.0.0-beta.9
- * @version 1.0.0-beta.9
+ * @version [version]
  *
  * @todo do more tests on the membership update/delete.
  */
@@ -1204,11 +1204,15 @@ class LLMS_REST_Test_Memberships extends LLMS_REST_Unit_Test_Case_Posts {
 	 * Test updating a membership.
 	 *
 	 * @since 1.0.0-beta.9
+	 * @since [version] Instantiate the view manager that handles the restrictions.
 	 *
 	 * @return void
 	 */
 	public function test_update_membership() {
+
 		wp_set_current_user( $this->user_allowed );
+		$llms_view_manager = new LLMS_View_Manager();
+		$llms_view_manager->add_actions();
 
 		// Create membership and instructor.
 		$membership_id = $this->factory->membership->create();

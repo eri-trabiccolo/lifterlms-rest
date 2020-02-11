@@ -4,8 +4,8 @@
  *
  * @package LifterLMS_REST/Classes/Controllers
  *
- * @since   1.0.0-beta.9
- * @version 1.0.0-beta.9
+ * @since 1.0.0-beta.9
+ * @version [version]
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -14,6 +14,7 @@ defined( 'ABSPATH' ) || exit;
  * LLMS_REST_Memberships_Controller class.
  *
  * @since 1.0.0-beta.9
+ * @since [version] Added `page_restricted()` method override.
  */
 class LLMS_REST_Memberships_Controller extends LLMS_REST_Posts_Controller {
 	/**
@@ -665,5 +666,23 @@ class LLMS_REST_Memberships_Controller extends LLMS_REST_Posts_Controller {
 		}
 
 		return ! empty( $to_set );
+	}
+
+	/**
+	 * Determine if membership content should be restricted for the current user.
+	 *
+	 * @since [version]
+	 *
+	 * @param LLMS_Membership $membership LLMS_Membership instance.
+	 * @return array Restriction check result data.
+	 */
+	protected function page_restricted( $membership ) {
+
+		if ( 'none' === $membership->get( 'sales_page_content_type' ) ) {
+			return array();
+		}
+
+		return llms_page_restricted( $membership->get( 'id' ) );
+
 	}
 }

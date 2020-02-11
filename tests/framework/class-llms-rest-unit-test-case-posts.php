@@ -6,8 +6,9 @@
  *
  * @since 1.0.0-beta.1
  * @since 1.0.0-beta.7 Fixed some expected properties not tested at all, and wrong excerpts.
- * @since 1.0.0-beta.8 Add tests on getting links to terms based on the current user caps.
- * @version 1.0.0-beta.8
+ * @since 1.0.0-beta.8 Added tests on getting links to terms based on the current user caps.
+ * @since [version] Updated `llms_posts_fields_match` method to override `$wp_query` prior to performing any match, and reset afterwards.
+ * @version [version]
  */
 
 require_once 'class-llms-rest-unit-test-case-server.php';
@@ -16,12 +17,11 @@ class LLMS_REST_Unit_Test_Case_Posts extends LLMS_REST_Unit_Test_Case_Server {
 
     /**
 	 * db post type of the model being tested
-	 * @var  string
+	 * @var string
 	 */
     protected $post_type = '';
 
 	/**
-	 *
 	 * Setup.
 	 *
 	 * @since 1.0.0-beta.7
@@ -42,7 +42,7 @@ class LLMS_REST_Unit_Test_Case_Posts extends LLMS_REST_Unit_Test_Case_Server {
 
 	/**
 	 * Test getting links to terms based on the current user caps.
-	 * @group what
+	 *
 	 * @since 1.0.0-beta.8
 	 */
 	public function test_get_links_terms() {
@@ -89,6 +89,7 @@ class LLMS_REST_Unit_Test_Case_Posts extends LLMS_REST_Unit_Test_Case_Server {
 	 *
 	 * @since 1.0.0-beta.1
 	 * @since 1.0.0-beta.7 Fixed some expected properties not tested at all, and wrong excerpts.
+	 * @since [version] Added `$wp_query` override prior to performing any match, and reset afterwards.
 	 *
 	 * @param LLMS_Post_Model $llms_post       An LLMS_Post_Model.
 	 * @param array           $llms_post_data  An array of llms post data.
@@ -96,11 +97,13 @@ class LLMS_REST_Unit_Test_Case_Posts extends LLMS_REST_Unit_Test_Case_Server {
 	 * @return void
 	 */
 	protected function llms_posts_fields_match( $llms_post, $llms_post_data, $context = 'view' ) {
+		global $post, $wp_query;
+		$temp       = $post;
+		$post       = $llms_post->get( 'post' );
+		$temp_query = $wp_query;
+		setup_postdata( $post );
 
 		$password_required = post_password_required( $llms_post->get( 'id' ) );
-		global $post;
-		$temp = $post;
-		$post = $llms_post->get( 'post' );
 
 		$expected = array(
 			'id'               => $llms_post->get( 'id' ),
@@ -110,12 +113,12 @@ class LLMS_REST_Unit_Test_Case_Posts extends LLMS_REST_Unit_Test_Case_Server {
 			),
 			'status'           => $llms_post->get( 'status' ),
 			'content'          => array(
-				'raw'      => $llms_post->get( 'content', true ),
-				'rendered' => $password_required ? '' : apply_filters( 'the_content', $llms_post->get( 'content', true ) ),
+				'raw'        => $llms_post->get( 'content', true ),
+				'rendered'   => $password_required ? '' : apply_filters( 'the_content', $llms_post->get( 'content', true ) ),
 			),
 			'excerpt'          => array(
-				'raw'      => $llms_post->get( 'excerpt', true ),
-				'rendered' => $password_required ? '' : apply_filters( 'the_excerpt', $llms_post->get( 'excerpt' ) ),
+				'raw'        => $llms_post->get( 'excerpt', true ),
+				'rendered'   => $password_required ? '' : apply_filters( 'the_excerpt', $llms_post->get( 'excerpt' ) ),
 			),
 			'date_created'     => $llms_post->get( 'date', 'Y-m-d H:i:s' ),
 			'date_created_gmt' => $llms_post->get( 'date_gmt', 'Y-m-d H:i:s' ),
@@ -161,7 +164,10 @@ class LLMS_REST_Unit_Test_Case_Posts extends LLMS_REST_Unit_Test_Case_Server {
 			}
 		}
 
-		$post = $temp;
+		$post     = $temp;
+		$wp_query = $temp_query;
+		wp_reset_postdata();
+
 	}
 
 	/**

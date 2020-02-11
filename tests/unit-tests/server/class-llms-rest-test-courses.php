@@ -14,12 +14,15 @@
  *                     respectively to `sales_page_type` and `sales_page_url` according to the specs.
  *                     Added missing quotes in enrollment/access default messages shortcodes.
  *                     Added `rest_taxonomies` property.
- * @since [verison] Added checks on `sales_page_page_id` and
+ * @since 1.0.0-beta.9 Added checks on `sales_page_page_id` and
  *                     `sales_page_page_url` always returned in `edit` context.
  *                     Use `$this->perform_mock_request()` and `$this->assertResponseStatusEquals()` utils.
  *                     Added `@return` to doc.
- *                     Use the far less predictable `wp_wp_rand()` in place of `wp_rand()`.
- * @version 1.0.0-beta.8
+ *                     Use the far less predictable `wp_rand()` in place of `rand()`.
+ * @since [version] Properly handle `audio_embed` and `video_embed` properties thar are now composed of sub-properties.
+ *                      Add tests on properties restriction.
+ *
+ * @version [version]
  *
  * @todo update tests to check links.
  * @todo do more tests on the courses update/delete.
@@ -433,6 +436,139 @@ class LLMS_REST_Test_Courses extends LLMS_REST_Unit_Test_Case_Posts {
 		// Success.
 		$this->assertResponseStatusEquals( 200, $response );
 
+		// Check retrieved course matches the created ones.
+		$this->llms_posts_fields_match( $course, $response->get_data() );
+
+		$res_data = $response->get_data();
+
+		// Sales page type.
+		$this->assertEquals( 'none', $res_data['sales_page_type'] );
+		$this->assertFalse( array_key_exists( 'sales_page_page_id', $res_data ) );
+		$this->assertFalse( array_key_exists( 'sales_page_url', $res_data ) );
+
+		// Check that in edit context `sales_page_page_id` and `sales_page_url`,
+		// are still returned.
+		$response = $this->perform_mock_request(
+			'GET',
+			$this->route . '/' . $course->get( 'id' ),
+			array(),
+			array( 'context' => 'edit' )
+		);
+
+		// Success.
+		$this->assertResponseStatusEquals( 200, $response );
+
+		$res_data = $response->get_data();
+
+		$this->assertEquals( 'none', $res_data['sales_page_type'] );
+		$this->assertTrue( array_key_exists( 'sales_page_page_id', $res_data ) );
+		$this->assertTrue( array_key_exists( 'sales_page_url', $res_data ) );
+	}
+
+
+	/**
+	 * Test getting a single course with sales page props.
+	 *
+	 * @since [version]
+	 */
+	public function test_get_course_with_sales_page() {
+
+		wp_set_current_user( $this->user_forbidden );
+
+		// Setup course.
+		$course = $this->factory->course->create_and_get();
+
+		// set audio and video embeds.
+		$course->set( 'audio_embed', 'https://expected-audio.com/oEmbed' );
+		$course->set( 'video_embed', 'https://expected-video.com/oEmbed' );
+
+		// set sales page custom content.
+		$course->set( 'sales_page_content_type', 'content' );
+		$course->set( 'excerpt', 'I expect to see this' );
+
+		$response = $this->perform_mock_request( 'GET', $this->route . '/' . $course->get( 'id' ) );
+		$res_data = $response->get_data();
+
+		// we expect the course content to be equal to the excerpt but still the video and audio templates prepended to it.
+		global $post;
+		$temp = $post;
+		$post = $course->get( 'post' );
+
+		ob_start();
+		llms_get_template( 'course/video.php' );
+		llms_get_template( 'course/audio.php' );
+		$content_before = ob_get_clean();
+
+		$this->assertEquals( $content_before . '<p>I expect to see this</p>', rtrim( $res_data['content']['rendered'], "\n" ) );
+		$this->assertTrue( $res_data['content']['restricted'] );
+		$this->assertEquals( '<p>I expect to see this</p>', rtrim( $res_data['excerpt']['rendered'], "\n" ) );
+		$this->assertTrue( $res_data['excerpt']['restricted'] );
+
+		// audio and video embeds are then not restricted.
+		$this->assertEquals( 'https://expected-audio.com/oEmbed', $res_data['audio_embed']['rendered'] );
+		$this->assertFalse( $res_data['audio_embed']['restricted'] );
+		$this->assertEquals( 'https://expected-video.com/oEmbed', $res_data['video_embed']['rendered'] );
+		$this->assertFalse( $res_data['video_embed']['restricted'] );
+
+
+		// set sales page with redirection to a page.
+		$course->set( 'sales_page_content_type', 'page' );
+		$response = $this->perform_mock_request( 'GET', $this->route . '/' . $course->get( 'id' ) );
+		$res_data = $response->get_data();
+		$this->assertEquals( '', $res_data['content']['rendered'] );
+		$this->assertTrue( $res_data['content']['restricted'] );
+		$this->assertEquals( '', $res_data['excerpt']['rendered'] );
+		$this->assertTrue( $res_data['excerpt']['restricted'] );
+		$this->assertEquals( '', $res_data['audio_embed']['rendered'] );
+		$this->assertTrue( $res_data['audio_embed']['restricted'] );
+		$this->assertEquals( '', $res_data['video_embed']['rendered'] );
+		$this->assertTrue( $res_data['video_embed']['restricted'] );
+
+		// set sales page with redirection to an URL.
+		$course->set( 'sales_page_content_type', 'url' );
+		$response = $this->perform_mock_request( 'GET', $this->route . '/' . $course->get( 'id' ) );
+		$res_data = $response->get_data();
+		$this->assertEquals( '', $res_data['content']['rendered'] );
+		$this->assertTrue( $res_data['content']['restricted'] );
+		$this->assertEquals( '', $res_data['excerpt']['rendered'] );
+		$this->assertTrue( $res_data['excerpt']['restricted'] );
+		$this->assertEquals( '', $res_data['audio_embed']['rendered'] );
+		$this->assertTrue( $res_data['audio_embed']['restricted'] );
+		$this->assertEquals( '', $res_data['video_embed']['rendered'] );
+		$this->assertTrue( $res_data['video_embed']['restricted'] );
+
+		// course not restricted.
+		$course->set( 'sales_page_content_type', 'none' );
+		$response = $this->perform_mock_request( 'GET', $this->route . '/' . $course->get( 'id' ) );
+		$res_data = $response->get_data();
+
+		$this->assertEquals( rtrim( apply_filters( 'the_content', $course->get( 'content', true ) , "\n" ) ), rtrim( $res_data['content']['rendered'], "\n" ) );
+		$this->assertFalse( $res_data['content']['restricted'] );
+		$this->assertEquals( '<p>I expect to see this</p>', rtrim( $res_data['excerpt']['rendered'], "\n" ) );
+		$this->assertFalse( $res_data['excerpt']['restricted'] );
+		$this->assertEquals( 'https://expected-audio.com/oEmbed', $res_data['audio_embed']['rendered'] );
+		$this->assertFalse( $res_data['audio_embed']['restricted'] );
+		$this->assertEquals( 'https://expected-video.com/oEmbed', $res_data['video_embed']['rendered'] );
+		$this->assertFalse( $res_data['video_embed']['restricted'] );
+
+		// reset $post.
+		$post = $temp;
+	}
+
+	/**
+	 * Test getting single course without permission.
+	 *
+	 * @since 1.0.0-beta.1
+	 */
+	/*
+	public function test_get_course_without_permission() {
+
+		wp_set_current_user( 0 );
+
+		// Setup course.
+		$course_id = $this->factory->course->create();
+		$response  = $this->server->dispatch( new WP_REST_Request( 'GET', $this->route . '/' . $course_id ) );
+
 		$res_data = $response->get_data();
 
 		// Check retrieved course matches the created ones.
@@ -707,6 +843,7 @@ class LLMS_REST_Test_Courses extends LLMS_REST_Unit_Test_Case_Posts {
 	 *
 	 * @since 1.0.0-beta.1
 	 * @since 1.0.0-beta.9 Use `$this->perform_mock_request()` and `$this->assertResponseStatusEquals()` utils.
+	 * @since [version] Properly handle `audio_embed` and `video_embed` properties thar are now composed of sub-properties.
 	 *
 	 * @return void
 	 */
@@ -740,8 +877,8 @@ class LLMS_REST_Test_Courses extends LLMS_REST_Unit_Test_Case_Posts {
 
 		$res_data = $response->get_data();
 
-		$this->assertEquals( esc_url_raw( $sample_course_args['audio_embed'] ), $res_data['audio_embed'] );
-		$this->assertEquals( esc_url_raw( $sample_course_args['video_embed'] ), $res_data['video_embed'] );
+		$this->assertEquals( esc_url_raw( $sample_course_args['audio_embed'] ), $res_data['audio_embed']['rendered'] );
+		$this->assertEquals( esc_url_raw( $sample_course_args['video_embed'] ), $res_data['video_embed']['rendered'] );
 		$this->assertEquals( $sample_course_args['capacity_enabled'], $res_data['capacity_enabled'] );
 		$this->assertEquals( do_shortcode( $sample_course_args['capacity_message'] ), $res_data['capacity_message']['rendered'] );
 		$this->assertEquals( $sample_course_args['capacity_limit'], $res_data['capacity_limit'] );
@@ -855,7 +992,7 @@ class LLMS_REST_Test_Courses extends LLMS_REST_Unit_Test_Case_Posts {
 	}
 
 	/**
-	 * Test creating a single course with taxonomies
+	 * Test creating a single course with taxonomies.
 	 *
 	 * @since 1.0.0-beta.1
 	 * @since 1.0.0-beta.9 Use `$this->perform_mock_request()` and `$this->assertResponseStatusEquals()` utils.
@@ -1210,6 +1347,7 @@ class LLMS_REST_Test_Courses extends LLMS_REST_Unit_Test_Case_Posts {
 	 * @since 1.0.0-beta.1
 	 * @since 1.0.0-beta.7 Add tests on prerequisites.
 	 * @since 1.0.0-beta.9 Use `$this->assertResponseStatusEquals()` util.
+	 * @since [version] Instantiate the view manager that handles the restrictions.
 	 *
 	 * @return void
 	 */
@@ -1219,6 +1357,8 @@ class LLMS_REST_Test_Courses extends LLMS_REST_Unit_Test_Case_Posts {
 		$course = $this->factory->course->create_and_get();
 
 		wp_set_current_user( $this->user_allowed );
+		$llms_view_manager = new LLMS_View_Manager();
+		$llms_view_manager->add_actions();
 
 		// update.
 		$update_data = array(

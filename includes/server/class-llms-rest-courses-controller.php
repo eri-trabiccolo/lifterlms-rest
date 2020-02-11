@@ -43,6 +43,8 @@ defined( 'ABSPATH' ) || exit;
  *                     Removed `create_llms_post()` and `get_object()` methods, now abstracted in `LLMS_REST_Posts_Controller` class.
  *                     `llms_rest_course_filters_removed_for_response` filter hook added.
  *                     Added `llms_rest_course_item_schema`, `llms_rest_pre_insert_course`, `llms_rest_prepare_course_object_response`, `llms_rest_course_links` filter hooks.
+ * @since [version] Added `page_restricted()` and `maybe_restrict_object_data()` methods override.
+ *                      Properly define and handle `audio_embed` and `video_embed` properties thar are now composed of sub-properties.
  */
 class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 
@@ -164,6 +166,8 @@ class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 	 *                     Add missing quotes in enrollment/access default messages shortcodes.
 	 * @since 1.0.0-beta.9 Make sure instructors list is either not empty and composed by real user ids.
 	 *                     Added `llms_rest_course_item_schema` filter hook.
+	 * @since [version] `audio_embed` and `video_embed` properties are now composed of sub-properties: `raw`, `rendered`, `restricted`.
+	 *
 	 * @return array
 	 */
 	public function get_item_schema() {
@@ -224,20 +228,63 @@ class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 			),
 			'audio_embed'               => array(
 				'description' => __( 'URL to an oEmbed enable audio URL.', 'lifterlms' ),
-				'type'        => 'string',
+				'type'        => 'object',
 				'context'     => array( 'view', 'edit' ),
-				'format'      => 'uri',
 				'arg_options' => array(
-					'sanitize_callback' => 'esc_url_raw',
+					'sanitize_callback' => null, // Note: sanitization implemented in self::prepare_item_for_database().
+					'validate_callback' => null, // Note: validation implemented in self::prepare_item_for_database().
+				),
+				'properties'  => array(
+					'raw'      => array(
+						'description' => __( 'Raw URL.', 'lifterlms' ),
+						'type'        => 'string',
+						'context'     => array( 'edit' ),
+						'format'      => 'uri',
+					),
+					'rendered' => array(
+						'description' => __( 'Rendered URL.', 'lifterlms' ),
+						'type'        => 'string',
+						'context'     => array( 'view', 'edit' ),
+						'format'      => 'uri',
+						'readonly'    => true,
+					),
+					'restricted' => array(
+						'description' => __( 'Whether the audio embed URL is restricted to the current user.', 'lifterlms' ),
+						'type'        => 'boolean',
+						'context'     => array( 'view', 'edit' ),
+						'readonly'    => true,
+					),
 				),
 			),
 			'video_embed'               => array(
 				'description' => __( 'URL to an oEmbed enable video URL.', 'lifterlms' ),
-				'type'        => 'string',
+				'type'        => 'object',
 				'context'     => array( 'view', 'edit' ),
 				'format'      => 'uri',
 				'arg_options' => array(
-					'sanitize_callback' => 'esc_url_raw',
+					'sanitize_callback' => null, // Note: sanitization implemented in self::prepare_item_for_database().
+					'validate_callback' => null, // Note: validation implemented in self::prepare_item_for_database().
+				),
+				'properties'  => array(
+					'raw'      => array(
+						'description' => __( 'Raw URL.', 'lifterlms' ),
+						'type'        => 'string',
+						'context'     => array( 'edit' ),
+						'format'      => 'uri',
+					),
+					'rendered' => array(
+						'description' => __( 'Rendered URL.', 'lifterlms' ),
+						'type'        => 'string',
+						'context'     => array( 'view', 'edit' ),
+						'format'      => 'uri',
+						'readonly'    => true,
+					),
+					'restricted' => array(
+						'description' => __( 'Whether the video embed URL is restricted to the current user.', 'lifterlms' ),
+						'type'        => 'boolean',
+						'context'     => array( 'view', 'edit' ),
+						'readonly'    => true,
+					),
 				),
 			),
 			'capacity_enabled'          => array(
@@ -314,7 +361,7 @@ class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 				),
 			),
 			'restricted_message'        => array(
-				'description' => __( 'Message displayed when non-enrolled visitors try to access restricted course content (lessons, quizzes, etc..) directly.', 'lifterlms' ),
+				'description' => __( 'Message displayed when non-enrolled visitors try to access restricted course content (lessons, quizzes, etc...) directly.', 'lifterlms' ),
 				'type'        => 'object',
 				'context'     => array( 'view', 'edit' ),
 				'arg_options' => array(
@@ -536,6 +583,7 @@ class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 	 *                     Always return `sales_page_url` and `sales_page_page_id` when in `edit` context.
 	 * @since 1.0.0-beta.9 Fixed `sales_page_url` not returned in `edit` context.
 	 *                     Added `llms_rest_prepare_course_object_response` filter hook.
+	 * @since [version] Properly handle `audio_embed` and `video_embed` properties thar are now composed of sub-properties.
 	 *
 	 * @param LLMS_Course     $course  Course object.
 	 * @param WP_REST_Request $request Full details about the request.
@@ -580,10 +628,14 @@ class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 		$data['instructors'] = $instructors;
 
 		// Audio Embed.
-		$data['audio_embed'] = $course->get( 'audio_embed' );
+		$data['audio_embed']['raw']        = $course->get( 'audio_embed' );
+		$data['audio_embed']['rendered']   = $data['audio_embed']['raw'];
+		$data['audio_embed']['restricted'] = false; // default.
 
 		// Video Embed.
-		$data['video_embed'] = $course->get( 'video_embed' );
+		$data['video_embed']['raw']        = $course->get( 'video_embed' );
+		$data['video_embed']['rendered']   = $data['video_embed']['raw'];
+		$data['video_embed']['restricted'] = false; // default.
 
 		// Video tile.
 		$data['video_tile'] = 'yes' === $course->get( 'tile_featured_video' );
@@ -682,6 +734,7 @@ class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 	 *                     Made `access_opens_date`, `access_closes_date`, `enrollment_opens_date`, `enrollment_closes_date` nullable.
 	 * @since 1.0.0-beta.8 Renamed `sales_page_page_type` and `sales_page_page_url` properties, respectively to `sales_page_type` and `sales_page_url` according to the specs.
 	 * @since 1.0.0-beta.9 Added `llms_rest_pre_insert_course` filter hook.
+	 * @since [version] Properly handle `audio_embed` and `video_embed` properties thar are now composed of sub-properties.
 	 *
 	 * @param WP_REST_Request $request Request object.
 	 * @return array|WP_Error Array of llms post args or WP_Error.
@@ -693,12 +746,20 @@ class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 
 		// Course Audio embed URL.
 		if ( ! empty( $schema['properties']['audio_embed'] ) && isset( $request['audio_embed'] ) ) {
-			$prepared_item['audio_embed'] = $request['audio_embed'];
+			if ( is_string( $request['audio_embed'] ) ) {
+				$prepared_item['audio_embed'] = esc_url_raw( $request['audio_embed'] );
+			} elseif ( isset( $request['audio_embed']['raw'] ) ) {
+				$prepared_item['audio_embed'] = esc_url_raw( $request['audio_embed']['raw'] );
+			}
 		}
 
 		// Course Video embed URL.
 		if ( ! empty( $schema['properties']['video_embed'] ) && isset( $request['video_embed'] ) ) {
-			$prepared_item['video_embed'] = $request['video_embed'];
+			if ( is_string( $request['video_embed'] ) ) {
+				$prepared_item['video_embed'] = esc_url_raw( $request['video_embed'] );
+			} elseif ( isset( $request['video_embed']['raw'] ) ) {
+				$prepared_item['video_embed'] = esc_url_raw( $request['video_embed']['raw'] );
+			}
 		}
 
 		// Video tile.
@@ -1241,4 +1302,43 @@ class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 
 	}
 
+	/**
+	 * Determine if course content should be restricted for the current user.
+	 *
+	 * @since [version]
+	 *
+	 * @param LLMS_Course $course LLMS_Course instance.
+	 * @return array Restriction check result data.
+	 */
+	protected function page_restricted( $course ) {
+
+		if ( 'none' === $course->get( 'sales_page_content_type' ) ) {
+			return array();
+		}
+
+		return llms_page_restricted( $course->get( 'id' ) );
+
+	}
+
+	/**
+	 * Maybe apply restrictions on object's data properties.
+	 *
+	 * @since [version]
+	 *
+	 * @param array       $data   Array of object data.
+	 * @param LLMS_Course $course LLMS_Course instance.
+	 * @return array Array of object data.
+	 */
+	protected function maybe_restrict_object_data( $data, $course ) {
+
+		$data = parent::maybe_restrict_object_data( $data, $course );
+
+		// when displaying custom content audio and video embed are not restricted.
+		if ( 'content' === $course->get( 'sales_page_content_type' ) ) {
+			$data['audio_embed']['restricted'] = false;
+			$data['video_embed']['restricted'] = false;
+		}
+
+		return $data;
+	}
 }
