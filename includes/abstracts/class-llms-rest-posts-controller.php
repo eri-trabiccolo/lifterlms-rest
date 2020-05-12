@@ -36,21 +36,21 @@ defined( 'ABSPATH' ) || exit;
 abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 
 	/**
-	 * Post type.
+	 * Post type
 	 *
 	 * @var string
 	 */
 	protected $post_type;
 
 	/**
-	 * Route base.
+	 * Route base
 	 *
 	 * @var string
 	 */
 	protected $collection_route_base_for_pagination;
 
 	/**
-	 * Schema properties available for ordering the collection.
+	 * Schema properties available for ordering the collection
 	 *
 	 * @var string[]
 	 */
@@ -63,12 +63,41 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 	);
 
 	/**
-	 * LLMS post class name.
+	 * LLMS post class name
 	 *
 	 * @since 1.0.0-beta.9
-	 * @var string;
+	 * @var string
 	 */
 	protected $llms_post_class;
+
+	/**
+	 * LLMS post class name
+	 *
+	 * @since [version]
+	 * @var string[]
+	 */
+	protected $additional_fields_blacklist;
+
+
+	/**
+	 * Instance of a post meta fields object.
+	 *
+	 * @since [version]
+	 * @var WP_REST_Post_Meta_Fields
+	 */
+	protected $meta;
+
+
+	/**
+	 * Constructor
+	 *
+	 * @since [version]
+	 */
+	public function __construct() {
+
+		$this->meta = new WP_REST_Post_Meta_Fields( $this->post_type );
+
+	}
 
 	/**
 	 * Retrieves an array of arguments for the delete endpoint.
@@ -277,13 +306,12 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 			return $terms_update;
 		}
 
-		/**
-		 * TODO: understand how to treat possible conflicting properties => instructors are registered as additional rest field by llms_blocks
-		 */
-		// $fields_update = $this->update_additional_fields_for_object( $object, $request );
-		// if ( is_wp_error( $fields_update ) ) {
-		// return $fields_update;
-		// }
+		// Custom fields registered via `register_rest_field()`
+		$fields_update = $this->update_additional_fields_for_object( $object, $request );
+		if ( is_wp_error( $fields_update ) ) {
+			return $fields_update;
+		}
+
 		$request->set_param( 'context', 'edit' );
 
 		/**
@@ -501,13 +529,12 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 			return $terms_update;
 		}
 
-		/**
-		 * TODO: understand how to treat possible conflicting properties => instructors are registered as additional rest field by llms_blocks
-		 */
-		// $fields_update = $this->update_additional_fields_for_object( $object, $request );
-		// if ( is_wp_error( $fields_update ) ) {
-		// return $fields_update;
-		// }
+		// Custom fields registered via `register_rest_field()`.
+		$fields_update = $this->update_additional_fields_for_object( $object, $request );
+		if ( is_wp_error( $fields_update ) ) {
+			return $fields_update;
+		}
+
 		$request->set_param( 'context', 'edit' );
 
 		/**
@@ -745,7 +772,7 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 		$password          = $object->get( 'password' );
 
 		$data = array(
-			'id'               => $object->get( 'id' ),
+			'id'               => $object_id,
 			'date_created'     => $object->get_date( 'date', 'Y-m-d H:i:s' ),
 			'date_created_gmt' => $object->get_date( 'date_gmt', 'Y-m-d H:i:s' ),
 			'date_updated'     => $object->get_date( 'modified', 'Y-m-d H:i:s' ),
@@ -774,6 +801,10 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 				'protected' => (bool) $password,
 			),
 		);
+
+		if ( isset( $this->meta ) ) {
+			$data['meta'] = $this->meta->get_value( $object_id, $request );
+		}
 
 		return $data;
 
@@ -809,6 +840,9 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 		}
 
 		$data = $this->prepare_object_for_response( $object, $request );
+
+		// Custom fields registered via `register_rest_field()`.
+		$data = $this->add_additional_fields_to_object( $data, $request );
 
 		if ( $has_password_filter ) {
 			// Reset filter.
@@ -1188,10 +1222,12 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 			),
 		);
 
-		/**
-		 * TODO: understand how to treat possible conflicting properties => instructors are registered as additional rest field by llms_blocks.
-		 */
-		// $schema = $this->add_additional_fields_schema( $schema );
+		if ( post_type_supports( $this->post_type, 'custom-fields' ) ) {
+			$schema['properties']['meta'] = $this->meta->get_field_schema();
+		}
+
+		// Custom fields registered via `register_rest_field()`.
+		$schema = $this->add_additional_fields_schema( $schema );
 		return $schema;
 	}
 
@@ -1396,7 +1432,8 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 	}
 
 	/**
-	 * Determines validity and normalizes the given status parameter.
+	 * Determines validity and normalizes the given status parameter
+	 *
 	 * Heavily based on WP_REST_Posts_Controller::handle_status_param().
 	 *
 	 * @since 1.0.0-beta.1
@@ -1437,7 +1474,8 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 	}
 
 	/**
-	 * Determines the featured media based on a request param.
+	 * Determines the featured media based on a request param
+	 *
 	 * Heavily based on WP_REST_Posts_Controller::handle_featured_media().
 	 *
 	 * @since 1.0.0-beta.1
@@ -1463,7 +1501,8 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 	}
 
 	/**
-	 * Updates the post's terms from a REST request.
+	 * Updates the post's terms from a REST request
+	 *
 	 * Heavily based on WP_REST_Posts_Controller::handle_terms().
 	 *
 	 * @since 1.0.0-beta.1
@@ -1494,7 +1533,8 @@ abstract class LLMS_REST_Posts_Controller extends LLMS_REST_Controller {
 	}
 
 	/**
-	 * Checks whether current user can assign all terms sent with the current request.
+	 * Checks whether current user can assign all terms sent with the current request
+	 *
 	 * Heavily based on WP_REST_Posts_Controller::check_assign_terms_permission().
 	 *
 	 * @since 1.0.0-beta.1

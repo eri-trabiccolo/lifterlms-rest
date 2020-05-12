@@ -78,6 +78,8 @@ class LLMS_REST_Sections_Controller extends LLMS_REST_Posts_Controller {
 	 */
 	public function __construct( $content_controller_class = 'LLMS_REST_Lessons_Controller' ) {
 
+		parent::__construct();
+
 		$this->collection_params        = $this->build_collection_params();
 		$this->content_controller_class = $content_controller_class;
 

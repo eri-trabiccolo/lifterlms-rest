@@ -47,7 +47,7 @@ defined( 'ABSPATH' ) || exit;
 class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 
 	/**
-	 * Route base.
+	 * Route base
 	 *
 	 * @var string
 	 */
@@ -74,12 +74,19 @@ class LLMS_REST_Courses_Controller extends LLMS_REST_Posts_Controller {
 	 */
 	protected $sections_controller;
 
+	protected $additional_fields_blacklist = array(
+		'visibility',
+		'instructors',
+	);
+
 	/**
 	 * Constructor.
 	 *
 	 * @since 1.0.0-beta.1
 	 */
 	public function __construct() {
+
+		parent::__construct();
 
 		$this->enrollments_controller = new LLMS_REST_Enrollments_Controller();
 		$this->enrollments_controller->set_collection_params( $this->get_enrollments_collection_params() );

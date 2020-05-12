@@ -72,6 +72,7 @@ class LLMS_REST_Lessons_Controller extends LLMS_REST_Posts_Controller {
 	 */
 	public function __construct() {
 
+		parent::__construct();
 		$this->collection_params = $this->build_collection_params();
 
 	}

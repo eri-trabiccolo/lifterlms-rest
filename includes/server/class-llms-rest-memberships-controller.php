@@ -37,12 +37,20 @@ class LLMS_REST_Memberships_Controller extends LLMS_REST_Posts_Controller {
 	 */
 	protected $rest_base = 'memberships';
 
+	protected $additional_fields_blacklist = array(
+		'visibility',
+		'instructors',
+	);
+
 	/**
 	 * Constructor.
 	 *
 	 * @since 1.0.0-beta.9
 	 */
 	public function __construct() {
+
+		parent::__construct();
+
 		$this->enrollments_controller = new LLMS_REST_Enrollments_Controller();
 		$this->enrollments_controller->set_collection_params( $this->get_enrollments_collection_params() );
 	}

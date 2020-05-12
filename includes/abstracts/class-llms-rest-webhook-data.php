@@ -41,7 +41,7 @@ abstract class LLMS_REST_Webhook_Data extends LLMS_Abstract_Database_Store {
 	/**
 	 * Database Table Name
 	 *
-	 * @var  string
+	 * @var string
 	 */
 	protected $table = 'webhooks';
 
@@ -50,7 +50,7 @@ abstract class LLMS_REST_Webhook_Data extends LLMS_Abstract_Database_Store {
 	 *
 	 * Used for filters/actions.
 	 *
-	 * @var  string
+	 * @var string
 	 */
 	protected $type = 'webhook';
 

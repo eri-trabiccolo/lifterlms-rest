@@ -566,4 +566,27 @@ abstract class LLMS_REST_Controller extends LLMS_REST_Controller_Stubs {
 
 	}
 
+	protected function get_additional_fields( $object_type = null ) {
+
+		if ( ! $object_type ) {
+			$object_type = $this->get_object_type();
+		}
+
+		if ( ! $object_type ) {
+			return array();
+		}
+
+		$fields = parent::get_additional_fields( $object_type );
+
+		if ( is_array( $fields ) && ! empty( $fields ) ) {
+
+			$additional_fields_blacklist = apply_filters( "llms_rest_additional_{$object_type}_fields_blacklist", $this->additional_fields_blacklist );
+			if ( ! empty( $additional_fields_blacklist ) ) {
+				$fields = array_diff_key( $fields, array_flip( $additional_fields_blacklist ) );
+			}
+		}
+
+		return apply_filters( "llms_rest_additional_{$object_type}_fields", $fields );
+	}
+
 }
